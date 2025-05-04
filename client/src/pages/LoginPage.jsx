@@ -1,64 +1,66 @@
-// client/src/pages/LoginPage.jsx
-
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom'; // Hook for navigation
+import { useNavigate, useLocation } from 'react-router-dom'; // Import useLocation
+// Import the custom hook to access auth context
+import { useAuth } from '../context/authContext'; // Adjust path if needed
 
-// Accepts a function prop 'onLoginSuccess' which will be called after successful login
-function LoginPage({ onLoginSuccess }) {
+// Removed onLoginSuccess prop
+function LoginPage() {
   // State specific to the login form
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Hook to programmatically navigate
+  // Get the login function from the Auth context
+  const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation(); // Get location state
+
+  // Determine where to redirect after login
+  // If redirected from ProtectedRoute, 'from' will contain the original path
+  const from = location.state?.from?.pathname || "/profile"; // Default to /profile
 
   // Handles the form submission
   const handleSubmit = async (event) => {
-    event.preventDefault(); // Prevent default form submission behavior
+    event.preventDefault();
     setIsLoading(true);
-    setError(''); // Clear previous errors
+    setError('');
 
     try {
-      // Make the actual API call to the backend
-      const response = await fetch('/api/auth/login', { // Use the correct server path
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: emailInput, // Send email from state
-          password: passwordInput // Send password from state
+          email: emailInput,
+          password: passwordInput
         }),
       });
 
-      const data = await response.json(); // Attempt to parse JSON regardless of status first
+      const data = await response.json();
 
       if (!response.ok) {
-        // Throw an error with the message from the server's JSON response or default
         throw new Error(data.message || `Login failed with status: ${response.status}`);
       }
 
       // --- Login Success ---
       console.log('LoginPage: Login successful', data);
 
-      // Call the callback function passed from App, providing the token and user data
-      if (onLoginSuccess && data.token && data.user) {
-        onLoginSuccess(data.token, data.user); // Pass token and user up to App
-        // Navigate to the profile page (or home/dashboard) after successful login
-        navigate('/profile'); // Redirect user
+      // Call the login function from the context
+      if (login && data.token && data.user) {
+        login(data.token, data.user); // Update global state via context
+        // Navigate to the originally intended page or default (/profile)
+        console.log(`LoginPage: Navigating to ${from}`);
+        navigate(from, { replace: true }); // Use replace to avoid login page in history
       } else {
-          // This case means login succeeded on server but callback or data is missing
-          console.error("Login successful but onLoginSuccess callback or token/user data is missing.");
+          console.error("Login successful but context login function or token/user data is missing.");
           setError("Login succeeded but failed to update application state.");
       }
 
     } catch (err) {
-      // Catch errors from fetch or the throw statement above
       console.error('LoginPage: Login error:', err);
       setError(err.message || 'Login failed. Please check credentials or server connection.');
-      // Do NOT navigate on error
     } finally {
-      setIsLoading(false); // Stop loading indicator
+      setIsLoading(false);
     }
   };
 
@@ -70,13 +72,13 @@ function LoginPage({ onLoginSuccess }) {
         <div>
           <label htmlFor="email" style={{ display: 'block', marginBottom: '5px' }}>Email:</label>
           <input
-            type="email" // Use type="email"
+            type="email"
             id="email"
             name="email"
             value={emailInput}
             onChange={(e) => setEmailInput(e.target.value)}
             required
-            disabled={isLoading} // Disable input while loading
+            disabled={isLoading}
             style={{ width: '100%', padding: '8px', marginBottom: '10px', boxSizing: 'border-box', border: '1px solid #ccc' }}
           />
         </div>
@@ -89,7 +91,7 @@ function LoginPage({ onLoginSuccess }) {
             value={passwordInput}
             onChange={(e) => setPasswordInput(e.target.value)}
             required
-            disabled={isLoading} // Disable input while loading
+            disabled={isLoading}
             style={{ width: '100%', padding: '8px', marginBottom: '10px', boxSizing: 'border-box', border: '1px solid #ccc' }}
           />
         </div>

@@ -1,20 +1,24 @@
-// client/src/components/NavBar.jsx
-
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom'; // Import Link for navigation and useNavigate for logout redirect
+import { Link, useNavigate } from 'react-router-dom';
+// Import the custom hook to access auth context
+import { useAuth } from '../context/authContext'; // Adjust path if needed
 
-// NavBar receives the current token and the handleLogout function as props
-function NavBar({ token, handleLogout }) {
-  const navigate = useNavigate(); // Hook for programmatic navigation
+// NavBar no longer needs props for token or logout handler
+function NavBar() {
+  // Get auth state and functions from context
+  const { token, logout } = useAuth(); // Use the hook here!
+  const navigate = useNavigate();
 
   const onLogoutClick = () => {
-    handleLogout(); // Call the logout function passed from App
-    navigate('/login'); // Redirect to login page after logout
+    // Call the logout function obtained from the context
+    logout();
+    // Navigate after context's logout logic runs
+    navigate('/login');
   };
 
-  // TODO :Basic inline styles for the navbar (replace with CSS classes later)
+  // --- Styles (remain the same) ---
   const navStyle = {
-    backgroundColor: '#f0f0f0', 
+    backgroundColor: '#f0f0f0',
     padding: '10px 20px',
     marginBottom: '15px',
     borderBottom: '1px solid #ccc',
@@ -22,18 +26,17 @@ function NavBar({ token, handleLogout }) {
     justifyContent: 'space-between',
     alignItems: 'center',
   };
-
   const linkStyle = {
     margin: '0 10px',
     textDecoration: 'none',
     color: '#333',
   };
-
   const buttonStyle = {
     marginLeft: '10px',
     padding: '5px 10px',
     cursor: 'pointer',
   };
+  // --- End Styles ---
 
   return (
     <nav style={navStyle}>
@@ -42,17 +45,18 @@ function NavBar({ token, handleLogout }) {
         <Link to="/products" style={linkStyle}>Products</Link>
       </div>
       <div> {/* Right side links/buttons */}
+        {/* Use the token from context for conditional rendering */}
         {token ? (
-          // If logged in, show Profile link and Logout button
+          // If logged in
           <>
             <Link to="/profile" style={linkStyle}>Profile</Link>
             <button onClick={onLogoutClick} style={buttonStyle}>Logout</button>
           </>
         ) : (
-          // If logged out, show Login and Register links
+          // If logged out
           <>
             <Link to="/login" style={linkStyle}>Login</Link>
-            <Link to="/register" style={linkStyle}>Register</Link> {/* Added Register Link */}
+            <Link to="/register" style={linkStyle}>Register</Link>
           </>
         )}
       </div>

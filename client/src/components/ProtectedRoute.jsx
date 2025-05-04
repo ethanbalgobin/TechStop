@@ -1,22 +1,24 @@
-import React from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import React from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
+// Import the custom hook to access auth context
+import { useAuth } from '../context/authContext'; // Adjust path if needed
 
-// This componenet wraps all routes that require authentication
-// It receives the authentication token and the component to render (children) as props.
+// ProtectedRoute no longer needs token prop, it gets it from context
+function ProtectedRoute({ children }) {
+  // Get the token from the authentication context
+  const { token } = useAuth();
+  const location = useLocation(); // Get the current location
 
-function ProtectedRoute({ token, children }) {
-    const location = useLocation();
+  // Check if the token exists (user is authenticated)
+  if (!token) {
+    // If no token exists:
+    console.log("ProtectedRoute: No token found via context, redirecting to login.");
+    // Redirect them to the /login page, passing the current location
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
 
-    if(!token) {
-        // If no token exists, user is not logged in
-        console.log('ProtectedRoute: No token found, redirecting to login');
-        // Paasing the the current location in 'state' so the login page can redirect
-        // back to the originally requested page after successful login .
-        return <Navigate to ='/login' state={{ from: location }} replace />
-    }
-
-    // if(token), render the child component (the protected page)
-    return children;
+  // If a token exists, render the child component (the actual protected page).
+  return children;
 }
 
 export default ProtectedRoute;

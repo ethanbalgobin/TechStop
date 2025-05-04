@@ -1,6 +1,4 @@
-// client/src/App.jsx
-
-import React, { useState } from 'react';
+import React from 'react'; // Removed useState
 // Import routing components
 import { Routes, Route } from 'react-router-dom';
 
@@ -10,50 +8,20 @@ import NotFoundPage from './pages/NotFoundPage';
 import ProductsPage from './pages/ProductsPage';
 import LoginPage from './pages/LoginPage';
 import ProfilePage from './pages/ProfilePage';
-import RegistrationPage from './pages/RegistrationPage'; // Import the new RegistrationPage
+import RegistrationPage from './pages/RegistrationPage';
 
 // --- Import Utility Components ---
 import NavBar from './components/NavBar';
 import ProtectedRoute from './components/ProtectedRoute';
 
+// App component no longer manages auth state directly
 function App() {
-  // --- Authentication State ---
-  const [token, setToken] = useState(localStorage.getItem('authToken'));
-  const [user, setUser] = useState(() => {
-    const storedUserInfo = localStorage.getItem('userInfo');
-    try {
-      return storedUserInfo ? JSON.parse(storedUserInfo) : null;
-    } catch (e) {
-      console.error("Error parsing stored user info:", e);
-      localStorage.removeItem('userInfo');
-      localStorage.removeItem('authToken');
-      return null;
-    }
-  });
 
-  // --- Authentication Handlers ---
-  const handleLoginSuccess = (newToken, newUser) => {
-    console.log("App: handleLoginSuccess called.");
-    localStorage.setItem('authToken', newToken);
-    localStorage.setItem('userInfo', JSON.stringify(newUser));
-    setToken(newToken);
-    setUser(newUser);
-    // Navigation is handled within LoginPage
-  };
-
-  const handleLogout = () => {
-    console.log('App: handleLogout called...');
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('userInfo');
-    setToken(null);
-    setUser(null);
-    // Navigation after logout is handled within NavBar
-  };
-
-  // --- Render Logic: Define Routes ---
+  // Note: NavBar and ProtectedRoute will be updated later to use useAuth()
   return (
     <div style={{ fontFamily: 'sans-serif' }}>
-      <NavBar token={token} handleLogout={handleLogout} />
+      {/* NavBar no longer needs props passed from here */}
+      <NavBar />
 
       <div style={{ padding: '20px' }}>
         <Routes>
@@ -61,17 +29,18 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route
               path="/login"
-              element={<LoginPage onLoginSuccess={handleLoginSuccess} />}
+              // LoginPage no longer needs onLoginSuccess prop from here
+              element={<LoginPage />}
           />
-          {/* Add the route for the registration page */}
           <Route path="/register" element={<RegistrationPage />} />
           <Route path="/products" element={<ProductsPage />} />
 
           {/* Protected Routes */}
+          {/* ProtectedRoute no longer needs token prop from here */}
           <Route
             path="/profile"
             element={
-              <ProtectedRoute token={token}>
+              <ProtectedRoute>
                 <ProfilePage />
               </ProtectedRoute>
             }
