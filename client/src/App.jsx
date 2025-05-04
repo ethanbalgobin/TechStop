@@ -10,10 +10,11 @@ import NotFoundPage from './pages/NotFoundPage';
 import ProductsPage from './pages/ProductsPage';
 import LoginPage from './pages/LoginPage';
 import ProfilePage from './pages/ProfilePage';
+import RegistrationPage from './pages/RegistrationPage'; // Import the new RegistrationPage
 
 // --- Import Utility Components ---
 import NavBar from './components/NavBar';
-import ProtectedRoute from './components/ProtectedRoute'; // Import ProtectedRoute
+import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
   // --- Authentication State ---
@@ -52,43 +53,30 @@ function App() {
   // --- Render Logic: Define Routes ---
   return (
     <div style={{ fontFamily: 'sans-serif' }}>
-      {/* Render NavBar, passing token and logout handler */}
       <NavBar token={token} handleLogout={handleLogout} />
 
       <div style={{ padding: '20px' }}>
-        {/* Define application routes */}
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<HomePage />} />
           <Route
               path="/login"
-              // Pass the handleLoginSuccess function as a prop to LoginPage
               element={<LoginPage onLoginSuccess={handleLoginSuccess} />}
           />
+          {/* Add the route for the registration page */}
+          <Route path="/register" element={<RegistrationPage />} />
           <Route path="/products" element={<ProductsPage />} />
 
           {/* Protected Routes */}
-          {/* Wrap the ProfilePage element with ProtectedRoute, passing the token */}
           <Route
             path="/profile"
             element={
               <ProtectedRoute token={token}>
-                {/* This is the child component rendered if token exists */}
                 <ProfilePage />
               </ProtectedRoute>
             }
           />
           {/* Add other protected routes here using the same pattern */}
-          {/* Example:
-          <Route
-            path="/orders"
-            element={
-              <ProtectedRoute token={token}>
-                <OrdersPage /> // Assuming an OrdersPage component exists
-              </ProtectedRoute>
-            }
-          />
-          */}
 
           {/* Catch-all route for 404 Not Found */}
           <Route path="*" element={<NotFoundPage />} />

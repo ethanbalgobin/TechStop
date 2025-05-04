@@ -12,9 +12,9 @@ function NavBar({ token, handleLogout }) {
     navigate('/login'); // Redirect to login page after logout
   };
 
-  // TODO: Basic inline styles for the navbar (replace with CSS classes later)
+  // TODO :Basic inline styles for the navbar (replace with CSS classes later)
   const navStyle = {
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#f0f0f0', 
     padding: '10px 20px',
     marginBottom: '15px',
     borderBottom: '1px solid #ccc',
@@ -49,8 +49,11 @@ function NavBar({ token, handleLogout }) {
             <button onClick={onLogoutClick} style={buttonStyle}>Logout</button>
           </>
         ) : (
-          // If logged out, show Login link
-          <Link to="/login" style={linkStyle}>Login</Link>
+          // If logged out, show Login and Register links
+          <>
+            <Link to="/login" style={linkStyle}>Login</Link>
+            <Link to="/register" style={linkStyle}>Register</Link> {/* Added Register Link */}
+          </>
         )}
       </div>
     </nav>
