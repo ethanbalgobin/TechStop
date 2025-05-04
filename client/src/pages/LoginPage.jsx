@@ -1,9 +1,12 @@
+// client/src/pages/LoginPage.jsx
+
 import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom'; // Import useLocation
+// Import useLocation to access state passed during navigation
+import { useNavigate, useLocation } from 'react-router-dom';
 // Import the custom hook to access auth context
 import { useAuth } from '../context/authContext'; // Adjust path if needed
 
-// Removed onLoginSuccess prop
+// LoginPage no longer needs onLoginSuccess prop
 function LoginPage() {
   // State specific to the login form
   const [emailInput, setEmailInput] = useState('');
@@ -14,11 +17,13 @@ function LoginPage() {
   // Get the login function from the Auth context
   const { login } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation(); // Get location state
+  const location = useLocation(); // Hook to get the current location object
 
-  // Determine where to redirect after login
-  // If redirected from ProtectedRoute, 'from' will contain the original path
-  const from = location.state?.from?.pathname || "/profile"; // Default to /profile
+  // --- Determine the redirect path ---
+  // Check if state was passed from ProtectedRoute (location.state.from)
+  // If yes, use that pathname; otherwise, default to '/profile'
+  const from = location.state?.from?.pathname || "/profile";
+  console.log("LoginPage: Redirect target 'from' location:", from); // Log the target path
 
   // Handles the form submission
   const handleSubmit = async (event) => {
@@ -36,10 +41,12 @@ function LoginPage() {
         }),
       });
 
-      const data = await response.json();
+      // Try parsing JSON first, as errors might be in the body
+      const data = await response.json().catch(() => null); // Return null if parsing fails
 
       if (!response.ok) {
-        throw new Error(data.message || `Login failed with status: ${response.status}`);
+        // Use message from parsed data if available, otherwise construct default
+        throw new Error(data?.message || `Login failed with status: ${response.status}`);
       }
 
       // --- Login Success ---
@@ -48,9 +55,10 @@ function LoginPage() {
       // Call the login function from the context
       if (login && data.token && data.user) {
         login(data.token, data.user); // Update global state via context
-        // Navigate to the originally intended page or default (/profile)
+        // Navigate to the originally intended page ('from') or default (/profile)
         console.log(`LoginPage: Navigating to ${from}`);
-        navigate(from, { replace: true }); // Use replace to avoid login page in history
+        // Use replace: true so the login page isn't in the browser history
+        navigate(from, { replace: true });
       } else {
           console.error("Login successful but context login function or token/user data is missing.");
           setError("Login succeeded but failed to update application state.");
@@ -64,7 +72,7 @@ function LoginPage() {
     }
   };
 
-  // Render the login form
+  // Render the login form (JSX remains the same)
   return (
     <div>
       <h1>Login</h1>
