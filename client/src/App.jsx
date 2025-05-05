@@ -14,14 +14,14 @@ import RegistrationPage from './pages/RegistrationPage';
 import ProductDetailPage from './pages/ProductDetailPage';
 import CartPage from './pages/CartPage';
 import CheckoutPage from './pages/CheckoutPage';
-import OrderSuccessPage from './pages/OrderSuccessPage'; // Import OrderSuccessPage
+import OrderSuccessPage from './pages/OrderSuccessPage';
+import OrderHistoryPage from './pages/OrderHistoryPage';
+import OrderDetailPage from './pages/OrderDetailPage';
 
 // --- Import Utility Components ---
 import NavBar from './components/NavBar';
 import ProtectedRoute from './components/ProtectedRoute';
-import OrderHistoryPage from './pages/OrderHistoryPage';
 
-// App component no longer manages auth state directly
 function App() {
 
   // --- Render Logic: Define Routes ---
@@ -53,8 +53,6 @@ function App() {
               <ProtectedRoute> <CheckoutPage /> </ProtectedRoute>
             }
           />
-          {/* Add the route for the order success page */}
-          {/* It likely should be protected too, so users can't guess order IDs */}
           <Route
             path="/order-success/:orderId"
             element={
@@ -67,6 +65,10 @@ function App() {
             element={
               <ProtectedRoute> <OrderHistoryPage /> </ProtectedRoute>
             }
+          />
+          <Route 
+            path="orders/:orderId"
+            element={ <ProtectedRoute> <OrderDetailPage /> </ProtectedRoute>}
           />
           {/* Catch-all route for 404 Not Found */}
           <Route path="*" element={<NotFoundPage />} />

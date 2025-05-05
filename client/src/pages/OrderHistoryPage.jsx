@@ -73,6 +73,15 @@ function OrderHistoryPage() {
    const tableStyle = { width: '100%', borderCollapse: 'collapse', marginTop: '20px' };
    const thTdStyle = { border: '1px solid #ddd', padding: '8px', textAlign: 'left' };
    const thStyle = { ...thTdStyle, backgroundColor: '#f2f2f2' };
+   const detailLinkStyle = {
+    padding: '3px 8px',
+    textDecoration: 'none',
+    border: '1px solid #ccc',
+    borderRadius: '4px',
+    backgroundColor: '#f8f9fa',
+    color: '#007bff',
+    cursor: 'pointer'
+   };
 
   // --- Render Logic ---
 
@@ -115,8 +124,9 @@ function OrderHistoryPage() {
                     {/* <td style={thTdStyle}>{order.shipping_address_id}</td> */}
                     {/* <td style={thTdStyle}>{order.billing_address_id}</td> */}
                     <td style={thTdStyle}>
-                        {/* TODO: Link to a specific Order Detail page later */}
-                        <button disabled>View Details</button>
+                        <Link to={`/orders/${order.id}`} style={detailLinkStyle}>
+                            View Details
+                        </Link>
                     </td>
             </tr>
             ))}

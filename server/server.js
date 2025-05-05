@@ -242,6 +242,111 @@ app.get('/api/cart', authenticateToken, async (req, res) => {
     }
 });
 
+// === Fetch Single Order Details API Route ===
+
+app.get('/api/orders/:orderId', authenticateToken, async (req, res) => {
+    const userId = req.user.userId; // Get user ID from authenticated token
+    const { orderId } = req.params; // Get order ID from URL parameter
+
+    // Validate orderId is a number
+    const intOrderId = parseInt(orderId, 10);
+    if (isNaN(intOrderId)) {
+        return res.status(400).json({ error: 'Invalid Order ID format.' });
+    }
+
+    console.log(`[API GET /api/orders/:orderId] Fetching details for Order ID: ${intOrderId}, User ID: ${userId}`);
+
+    try {
+        // --- Fetch main order details ---
+        // Ensure the order belongs to the requesting user
+        const orderQuery = `
+            SELECT
+                o.id,
+                o.order_date,
+                o.total_amount,
+                o.status,
+                o.shipping_address_id,
+                o.billing_address_id -- Keep this if you might use it later
+                -- Select other order fields if needed
+            FROM orders o
+            WHERE o.id = $1 AND o.user_id = $2;
+        `;
+        const orderResult = await pool.query(orderQuery, [intOrderId, userId]);
+
+        // Check if order exists and belongs to the user
+        if (orderResult.rows.length === 0) {
+            console.log(`[API GET /api/orders/:orderId] Order ID: ${intOrderId} not found for User ID: ${userId}`);
+            return res.status(404).json({ error: 'Order not found.' });
+        }
+        const orderDetails = orderResult.rows[0];
+
+        // --- Fetch associated order items ---
+        // Join with products table to get product details
+        const itemsQuery = `
+            SELECT
+                oi.product_id,
+                oi.quantity,
+                oi.price_per_unit, -- Price at the time of order
+                p.name AS product_name,
+                p.image_url AS product_image_url
+                -- Select other product details if needed
+            FROM order_items oi
+            JOIN products p ON oi.product_id = p.id
+            WHERE oi.order_id = $1
+            ORDER BY p.name ASC; -- Or order by item ID
+        `;
+        const itemsResult = await pool.query(itemsQuery, [intOrderId]);
+        const orderItems = itemsResult.rows.map(item => ({
+            productId: item.product_id,
+            quantity: item.quantity,
+            pricePerUnit: item.price_per_unit, // Use the price stored with the order item
+            name: item.product_name,
+            imageUrl: item.product_image_url
+        }));
+        console.log(`[API GET /api/orders/:orderId] Found ${orderItems.length} items for Order ID: ${intOrderId}`);
+
+
+        // --- Fetch shipping address details ---
+        let shippingAddress = null;
+        if (orderDetails.shipping_address_id) {
+            const addressQuery = `
+                SELECT
+                    address_line1,
+                    address_line2,
+                    city,
+                    state_province_region,
+                    postal_code,
+                    country
+                FROM addresses
+                WHERE id = $1 AND user_id = $2; -- Ensure address also belongs to user
+            `;
+            const addressResult = await pool.query(addressQuery, [orderDetails.shipping_address_id, userId]);
+            if (addressResult.rows.length > 0) {
+                shippingAddress = addressResult.rows[0];
+                console.log(`[API GET /api/orders/:orderId] Found shipping address for Order ID: ${intOrderId}`);
+            } else {
+                 console.warn(`[API GET /api/orders/:orderId] Shipping address ID ${orderDetails.shipping_address_id} not found or doesn't belong to user ID ${userId} for Order ID: ${intOrderId}`);
+                 // Decide how to handle this - return null or error? Returning null for now.
+            }
+        } else {
+             console.log(`[API GET /api/orders/:orderId] No shipping address ID associated with Order ID: ${intOrderId}`);
+        }
+
+        // --- Combine results and send response ---
+        const fullOrderDetails = {
+            ...orderDetails, // Spread main order details (id, date, total, status, address IDs)
+            items: orderItems, // Add the array of items
+            shippingAddress: shippingAddress // Add the fetched shipping address object (or null)
+        };
+
+        res.status(200).json(fullOrderDetails);
+
+    } catch (error) {
+        console.error(`[API GET /api/orders/:orderId] Error fetching details for Order ID ${intOrderId}, User ID ${userId}:`, error.stack);
+        res.status(500).json({ error: 'Internal Server Error fetching order details.' });
+    }
+});
+
 // POST /api/cart/items - Add an item to the cart (or update quantity if exists)
 app.post('/api/cart/items', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
