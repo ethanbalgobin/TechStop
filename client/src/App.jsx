@@ -27,7 +27,7 @@ function App() {
   // --- Render Logic: Define Routes ---
   // NavBar, LoginPage, ProtectedRoute now use useAuth() hook internally
   return (
-    <div style={{ fontFamily: 'sans-serif' }}>
+    <div>
       <NavBar />
 
       <div style={{ padding: '20px' }}>
