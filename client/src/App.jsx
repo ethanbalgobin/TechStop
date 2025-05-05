@@ -19,6 +19,7 @@ import OrderSuccessPage from './pages/OrderSuccessPage'; // Import OrderSuccessP
 // --- Import Utility Components ---
 import NavBar from './components/NavBar';
 import ProtectedRoute from './components/ProtectedRoute';
+import OrderHistoryPage from './pages/OrderHistoryPage';
 
 // App component no longer manages auth state directly
 function App() {
@@ -61,7 +62,12 @@ function App() {
             }
            />
           {/* Add other protected routes (e.g., /orders) here later */}
-
+          <Route
+            path="/orders"
+            element={
+              <ProtectedRoute> <OrderHistoryPage /> </ProtectedRoute>
+            }
+          />
           {/* Catch-all route for 404 Not Found */}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>

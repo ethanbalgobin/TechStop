@@ -167,6 +167,39 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
     }
 });
 
+// === Order History API Route ===
+// This route should be protected
+
+app.get('/api/orders', authenticateToken, async (req, res) => {
+    const userId = req.user.userId; // Get user ID from authenticated token
+    console.log(`[API GET /api/orders] Fetching order history for user ID: ${userId}`);
+
+    try {
+        // Query to get the main order details for the logged-in user
+        // Ordering by order_date descending to show newest orders first
+        const query = `
+            SELECT
+                id,
+                order_date,
+                total_amount,
+                status,
+                shipping_address_id,
+                billing_address_id
+            FROM orders
+            WHERE user_id = $1
+            ORDER BY order_date DESC;
+        `;
+        const { rows } = await pool.query(query, [userId]);
+
+        console.log(`[API GET /api/orders] Found ${rows.length} orders for user ID: ${userId}`);
+        res.status(200).json(rows);
+
+    } catch (error) {
+        console.error(`[API GET /api/orders] Error fetching order history for user ID ${userId}:`, error.stack);
+        res.status(500).json({ error: 'Internal Server Error fetching order history.' });
+    }
+});
+
 app.get('/api/cart', authenticateToken, async (req, res) => {
     const userId = req.user.userId; // getting userId from token payload
     console.log(`[API GET /api/cart] Fetching cart for user ID ${userId}`);

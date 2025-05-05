@@ -60,6 +60,7 @@ function NavBar() {
         {token ? (
           // If logged in
           <>
+            <Link to="/orders" style={linkStyle}>Orders</Link>
             <Link to="/profile" style={linkStyle}>Profile</Link>
             <button onClick={onLogoutClick} style={buttonStyle}>Logout</button>
           </>
