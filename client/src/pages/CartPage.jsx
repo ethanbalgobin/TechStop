@@ -1,3 +1,5 @@
+// client/src/pages/CartPage.jsx
+
 import React from 'react';
 import { Link } from 'react-router-dom';
 // Import the useCart hook to access cart state and functions
@@ -5,16 +7,16 @@ import { useCart } from '../context/CartContext'; // Adjust path if needed
 
 function CartPage() {
   // Get cart data and functions from the context
-  const { cartItems, removeFromCart, updateQuantity, clearCart, cartTotal, cartCount } = useCart();
+  const { cartItems, removeFromCart, updateQuantity, clearCart, cartTotal, cartCount, isLoading } = useCart();
 
   // Helper function to safely format price
   const formatPrice = (price) => {
-    const numPrice = Number(price); // Attempt to convert to number
+    const numPrice = Number(price);
     if (!isNaN(numPrice)) {
-      return numPrice.toFixed(2); // Format if it's a valid number
+      return numPrice.toFixed(2);
     }
     console.warn(`CartPage: Invalid price value encountered: ${price}`);
-    return 'N/A'; // Return placeholder if not a valid number
+    return 'N/A';
   };
 
   // Helper function to calculate subtotal safely
@@ -27,136 +29,108 @@ function CartPage() {
       return 'N/A';
   };
 
+  // --- Render Logic ---
 
-  // Basic styles for layout (replace with CSS later)
-  const tableStyle = {
-    width: '100%',
-    borderCollapse: 'collapse',
-    marginTop: '20px',
-  };
-  const thTdStyle = {
-    border: '1px solid #ddd',
-    padding: '8px',
-    textAlign: 'left',
-  };
-  const thStyle = {
-    ...thTdStyle,
-    backgroundColor: '#f2f2f2',
-  };
-  const quantityInputStyle = {
-    width: '50px',
-    padding: '5px',
-    textAlign: 'center',
-  };
-   const totalStyle = {
-      marginTop: '20px',
-      textAlign: 'right',
-      fontSize: '1.2em',
-      fontWeight: 'bold',
-  };
-   const buttonStyle = {
-       padding: '5px 10px',
-       cursor: 'pointer',
-       backgroundColor: '#dc3545', // Red color for remove
-       color: 'white',
-       border: 'none',
-       borderRadius: '4px',
-       marginLeft: '10px'
-   };
- /*  const updateButtonStyle = {
-       ...buttonStyle,
-       backgroundColor: '#007bff', // Blue for update actions if needed
-       marginLeft: '0px', // Adjust spacing if needed
-       marginRight: '5px'
-   };
-*/
-   const clearCartButtonStyle = {
-       ...buttonStyle,
-       backgroundColor: '#6c757d', // Gray for clear cart
-       marginTop: '20px',
-       display: 'block', // Make it block to appear below table
-       marginLeft: 'auto' // Align right if needed, or remove for default left
-   };
+  if (isLoading) {
+      return <div className="text-center text-gray-500 py-10">Loading cart...</div>;
+  }
 
-   const checkoutLinkStyle = {
-    display: 'inline-block', // Make it behave like a button
-    padding: '10px 15px',
-    backgroundColor: '#28a745', // Green color
-    color: 'white',
-    textDecoration: 'none', // Remove underline from link
-    borderRadius: '4px',
-    marginLeft: '10px', // Space from Clear Cart button
-    marginTop: '20px',
-    textAlign: 'center',
-    cursor: 'pointer',
-    border: 'none', // Make it look like a button
-    fontSize: '1em' // Match button font size perhaps
-};
-// --- End Styles ---
   return (
-    <div>
-      <h1>Your Shopping Cart</h1>
+    // Container with padding
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold text-gray-800 mb-6">Your Shopping Cart</h1>
+
       {cartItems.length === 0 ? (
         // Display message if cart is empty
-        <div>
-          <p>Your cart is currently empty.</p>
-          <Link to="/products">Continue Shopping</Link>
+        <div className="text-center py-10">
+          <p className="text-xl text-gray-500 mb-4">Your cart is currently empty.</p>
+          <Link
+            to="/products"
+            className="inline-block px-6 py-2 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            Continue Shopping
+          </Link>
         </div>
       ) : (
         // Display cart contents if not empty
         <>
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>Product</th>
-                <th style={thStyle}>Price</th>
-                <th style={thStyle}>Quantity</th>
-                <th style={thStyle}>Subtotal</th>
-                <th style={thStyle}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
+          {/* --- CHANGE: Replaced Table with CSS Grid using Divs --- */}
+          <div className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+            {/* Grid Header Row */}
+            <div className="grid grid-cols-12 gap-4 bg-gray-50 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {/* Define column spans (total 12 for easy division) */}
+              <div className="col-span-5">Product</div> {/* Approx 5/12 */}
+              <div className="col-span-2">Price</div>   {/* Approx 2/12 */}
+              <div className="col-span-2 text-center">Quantity</div> {/* Approx 2/12 */}
+              <div className="col-span-2">Subtotal</div> {/* Approx 2/12 */}
+              <div className="col-span-1 text-right"></div> {/* Actions column takes remaining space */}
+            </div>
+
+            {/* Grid Body Rows */}
+            <div className="bg-white divide-y divide-gray-200">
               {cartItems.map(item => (
-                <tr key={item.product.id}>
-                  <td style={thTdStyle}>{item.product.name}</td>
-                  {/* Use helper function to format price */}
-                  <td style={thTdStyle}>${formatPrice(item.product.price)}</td>
-                  <td style={thTdStyle}>
+                // Grid Row for each item
+                <div key={item.product.id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center">
+                  {/* Product Name Column */}
+                  <div className="col-span-5 text-sm font-medium text-gray-900 truncate" title={item.product.name}>
+                    {item.product.name}
+                  </div>
+                  {/* Price Column */}
+                  <div className="col-span-2 text-sm text-gray-500">
+                    ${formatPrice(item.product.price)}
+                  </div>
+                  {/* Quantity Column */}
+                  <div className="col-span-2 text-center">
                     <input
                       type="number"
                       min="0"
                       value={item.quantity}
-                      // Ensure value passed to updateQuantity is a number
                       onChange={(e) => updateQuantity(item.product.id, parseInt(e.target.value, 10) || 0)}
-                      style={quantityInputStyle}
+                      className="w-16 border border-gray-300 rounded-md shadow-sm text-center focus:ring-blue-500 focus:border-blue-500 sm:text-sm mx-auto"
                       aria-label={`Quantity for ${item.product.name}`}
                     />
-                  </td>
-                  {/* Use helper function to calculate subtotal */}
-                  <td style={thTdStyle}>${calculateSubtotal(item.product.price, item.quantity)}</td>
-                  <td style={thTdStyle}>
+                  </div>
+                  {/* Subtotal Column */}
+                  <div className="col-span-2 text-sm text-gray-500">
+                    ${calculateSubtotal(item.product.price, item.quantity)}
+                  </div>
+                  {/* Actions Column */}
+                  <div className="col-span-1 text-right">
                     <button
                       onClick={() => removeFromCart(item.product.id)}
-                      style={buttonStyle}
+                      className="text-red-600 hover:text-red-800 text-sm font-medium"
                       aria-label={`Remove ${item.product.name} from cart`}
                     >
                       Remove
                     </button>
-                  </td>
-                </tr>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
-          {/* Display Total - Use cartTotal from context */}
-          <div style={totalStyle}>
-            Total ({cartCount} items): ${cartTotal.toFixed(2)}
+            </div>
           </div>
-          {/* Clear Cart Button */}
-          <button onClick={clearCart} style={clearCartButtonStyle}>Clear Cart</button>
-          {/* Checkout Link (Styled as Button)*/}
-          <Link to="/checkout" style={checkoutLinkStyle}>
-              Proceed to Checkout
-          </Link>
+          {/* --- End CSS Grid Replacement --- */}
+
+
+          {/* Cart Summary and Actions Section (remains the same) */}
+          <div className="bg-gray-50 px-6 py-4 flex flex-col items-end space-y-3 mt-4 border border-gray-200 rounded-lg shadow-sm">
+            <div className="text-lg font-semibold text-gray-900">
+              Total ({cartCount} items): ${cartTotal.toFixed(2)}
+            </div>
+            <div className="flex space-x-3">
+               <button
+                 onClick={clearCart}
+                 className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+               >
+                 Clear Cart
+               </button>
+               <Link
+                 to="/checkout"
+                 className="px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+               >
+                 Proceed to Checkout
+               </Link>
+            </div>
+          </div>
         </>
       )}
     </div>

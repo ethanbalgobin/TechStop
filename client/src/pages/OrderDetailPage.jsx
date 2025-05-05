@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 // Import useAuth to get the token for the API call
-import { useAuth } from '../context/AuthContext'; 
+import { useAuth } from '../context/AuthContext';
 
 function OrderDetailPage() {
   // Get the orderId from the URL parameter
@@ -28,14 +28,13 @@ function OrderDetailPage() {
 
   // --- Effect to fetch order details ---
   useEffect(() => {
-    // Ensure orderId and token are available
     if (!orderId) {
       setError("Order ID not found in URL.");
       setLoading(false);
       return;
     }
     if (!token) {
-      setError("Not authenticated."); // Should be caught by ProtectedRoute but worth checking
+      setError("Not authenticated."); // Should be caught by ProtectedRoute
       setLoading(false);
       return;
     }
@@ -44,7 +43,6 @@ function OrderDetailPage() {
     setLoading(true);
     setError(null);
 
-    // Fetch data for the specific order ID
     fetch(`/api/orders/${orderId}`, {
       method: 'GET',
       headers: {
@@ -53,93 +51,117 @@ function OrderDetailPage() {
       },
     })
     .then(async response => {
-      const data = await response.json().catch(() => ({})); // Parsing JSON
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         const errorMessage = data?.error || `Error fetching order: ${response.status}`;
         console.error("OrderDetailPage: API Error:", errorMessage);
-        // Handling specific errors like 404 Not Found or 401/403 Unauthorized
+        // Handle specific errors like 404 Not Found or 401/403 Unauthorized if needed
         throw new Error(errorMessage);
       }
       console.log("OrderDetailPage: Order details fetched:", data);
-      setOrder(data); // Set the fetched order data
+      setOrder(data);
     })
     .catch(err => {
       console.error("OrderDetailPage: Fetch error:", err);
       setError(err.message || 'Failed to load order details.');
-      setOrder(null); // Clear order data on error
+      setOrder(null);
     })
     .finally(() => {
-      setLoading(false); // Set loading to false
+      setLoading(false);
     });
 
-  // Dependency array includes orderId and token
-  }, [orderId, token]);
-
-  // --- Basic Styles ---
-  const containerStyle = { display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '30px', maxWidth: '900px', margin: '20px auto' };
-  const sectionStyle = { border: '1px solid #eee', padding: '20px', borderRadius: '8px', marginBottom: '20px' };
-  const itemRowStyle = { display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #eee' };
-  const addressStyle = { marginTop: '10px', lineHeight: '1.6' };
-  const totalStyle = { fontWeight: 'bold', marginTop: '15px', textAlign: 'right' };
-  // --- End Styles ---
-
+  }, [orderId, token]); // Dependencies
 
   // --- Render Logic ---
   if (loading) {
-    return <div>Loading order details...</div>;
+    // Loading style
+    return <div className="text-center text-gray-500 py-10">Loading order details...</div>;
   }
 
   if (error) {
-    return <div style={{ color: 'red' }}>Error loading order details: {error}</div>;
+    // Error style
+    return <div className="text-center text-red-600 bg-red-100 p-4 rounded-md max-w-md mx-auto">Error loading order details: {error}</div>;
   }
 
   if (!order) {
-    return <div>Order not found or unable to load.</div>;
+    return <div className="text-center text-gray-500 py-10">Order not found or unable to load.</div>;
   }
 
   // Display order details if successfully loaded
   return (
-    <div>
-      <Link to="/orders">&larr; Back to Order History</Link>
-      <h1>Order Details</h1>
+    // Page container
+    <div className="container mx-auto px-4 py-8">
+      {/* Back link */}
+      <Link
+        to="/orders"
+        className="inline-block mb-6 text-blue-600 hover:text-blue-800 hover:underline"
+      >
+        &larr; Back to Order History
+      </Link>
 
-      {/* Order Summary Section */}
-      <div style={sectionStyle}>
-        <h2>Order Summary</h2>
-        <p><strong>Order ID:</strong> {order.id}</p>
-        <p><strong>Date Placed:</strong> {formatDateTime(order.order_date)}</p>
-        <p><strong>Status:</strong> {order.status}</p>
-        <p><strong>Total Amount:</strong> ${Number(order.total_amount).toFixed(2)}</p>
+      {/* Order Summary Header Section */}
+      <div className="bg-white shadow-md rounded-lg p-6 border border-gray-200 mb-6">
+        <h1 className="text-2xl font-bold text-gray-800 mb-4">Order Details</h1>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div>
+            <span className="font-medium text-gray-500 block">Order ID:</span>
+            <span className="text-gray-900">{order.id}</span>
+          </div>
+          <div>
+            <span className="font-medium text-gray-500 block">Date Placed:</span>
+            <span className="text-gray-900">{formatDateTime(order.order_date)}</span>
+          </div>
+          <div>
+            <span className="font-medium text-gray-500 block">Total Amount:</span>
+            <span className="text-gray-900 font-semibold">${Number(order.total_amount).toFixed(2)}</span>
+          </div>
+          <div>
+            <span className="font-medium text-gray-500 block">Status:</span>
+            <span className="text-gray-900">{order.status}</span>
+          </div>
+        </div>
       </div>
 
-      <div style={containerStyle}>
-        {/* Column 1: Items Ordered */}
-        <div style={sectionStyle}>
-          <h2>Items Ordered</h2>
-          {order.items && order.items.length > 0 ? (
-            order.items.map(item => (
-              <div key={item.productId} style={itemRowStyle}>
-                <span>{item.name} (x{item.quantity})</span>
-                <span>${Number(item.pricePerUnit).toFixed(2)} each</span>
-              </div>
-            ))
-          ) : (
-            <p>No items found for this order.</p>
-          )}
+      {/* Main Content Grid (Items and Shipping) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Items Ordered Section (Takes 2 columns on medium+ screens) */}
+        <div className="md:col-span-2 bg-white shadow-md rounded-lg p-6 border border-gray-200">
+          <h2 className="text-xl font-semibold text-gray-800 mb-4">Items Ordered</h2>
+          <div className="space-y-4">
+            {order.items && order.items.length > 0 ? (
+              order.items.map(item => (
+                <div key={item.productId} className="flex justify-between items-center border-b border-gray-100 pb-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{item.name}</p>
+                    <p className="text-xs text-gray-500">Qty: {item.quantity}</p>
+                  </div>
+                  <div className="text-sm text-gray-700">
+                    ${Number(item.pricePerUnit).toFixed(2)} each
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-gray-500">No items found for this order.</p>
+            )}
+          </div>
         </div>
 
-        {/* Column 2: Shipping Address */}
-        <div style={sectionStyle}>
-          <h2>Shipping Address</h2>
+        {/* Shipping Address Section (Takes 1 column on medium+ screens) */}
+        <div className="bg-white shadow-md rounded-lg p-6 border border-gray-200">
+          <h2 className="text-xl font-semibold text-gray-800 mb-4">Shipping Address</h2>
           {order.shippingAddress ? (
-            <div style={addressStyle}>
-              {order.shippingAddress.address_line1}<br />
-              {order.shippingAddress.address_line2 && <>{order.shippingAddress.address_line2}<br /></>}
-              {order.shippingAddress.city}, {order.shippingAddress.state_province_region || ''} {order.shippingAddress.postal_code}<br />
-              {order.shippingAddress.country}
+            <div className="text-sm text-gray-700 space-y-1">
+              {/* Fetching user's name from order details might require joining tables or separate fetch */}
+              {/* Or display name from address table if stored there */}
+              {/* <p className="font-medium text-gray-900">{order.shipping_full_name || 'N/A'}</p> */}
+              <p>{order.shippingAddress.address_line1}</p>
+              {order.shippingAddress.address_line2 && <p>{order.shippingAddress.address_line2}</p>}
+              <p>{order.shippingAddress.city}, {order.shippingAddress.state_province_region || ''}</p>
+              <p>{order.shippingAddress.postal_code}</p>
+              <p>{order.shippingAddress.country}</p>
             </div>
           ) : (
-            <p>Shipping address not available.</p>
+            <p className="text-sm text-gray-500">Shipping address not available.</p>
           )}
         </div>
       </div>
