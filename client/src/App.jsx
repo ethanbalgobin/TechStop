@@ -1,4 +1,3 @@
-// client/src/App.jsx
 
 import React from 'react';
 // Import routing components

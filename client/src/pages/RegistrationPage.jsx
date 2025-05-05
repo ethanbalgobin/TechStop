@@ -1,17 +1,15 @@
-// client/src/pages/RegistrationPage.jsx
-
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 function RegistrationPage() {
   // State for form inputs
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [firstName, setFirstName] = useState(''); // Optional
-  const [lastName, setLastName] = useState('');   // Optional
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
 
-  // State for loading and errors
+  // State for loading and errors/success
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -24,7 +22,6 @@ function RegistrationPage() {
     setError('');
     setSuccessMessage('');
 
-    // Basic client-side validation (add more as needed)
     if (!username || !email || !password) {
       setError('Username, email, and password are required.');
       setIsLoading(false);
@@ -32,38 +29,34 @@ function RegistrationPage() {
     }
 
     try {
-      const response = await fetch('/api/auth/register', { // Ensure this matches your server route
+      const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           username,
           email,
           password,
-          first_name: firstName, // Send optional fields
+          first_name: firstName,
           last_name: lastName
         }),
       });
 
-      const data = await response.json(); // Attempt to parse JSON
+      const data = await response.json();
 
       if (!response.ok) {
-        // Use error message from server response if available
         throw new Error(data.error || `Registration failed: ${response.status}`);
       }
 
-      // --- Registration Success ---
       console.log('Registration successful:', data);
-      setSuccessMessage('Registration successful! Please log in.');
-      // Clear form fields
+      setSuccessMessage('Registration successful! Redirecting to login...');
       setUsername('');
       setEmail('');
       setPassword('');
       setFirstName('');
       setLastName('');
-      // Optionally redirect to login page after a short delay
       setTimeout(() => {
         navigate('/login');
-      }, 2000); // Redirect after 2 seconds
+      }, 2000);
 
     } catch (err) {
       console.error('Registration error:', err);
@@ -73,81 +66,112 @@ function RegistrationPage() {
     }
   };
 
-  return (
-    <div>
-      <h1>Register New Account</h1>
-      <form onSubmit={handleSubmit}>
-        {/* Username Input */}
-        <div>
-          <label htmlFor="reg-username" style={{ display: 'block', marginBottom: '5px' }}>Username:</label>
-          <input
-            type="text"
-            id="reg-username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-            disabled={isLoading}
-            style={{ width: '100%', padding: '8px', marginBottom: '10px', boxSizing: 'border-box', border: '1px solid #ccc' }}
-          />
-        </div>
-        {/* Email Input */}
-        <div>
-          <label htmlFor="reg-email" style={{ display: 'block', marginBottom: '5px' }}>Email:</label>
-          <input
-            type="email"
-            id="reg-email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            disabled={isLoading}
-            style={{ width: '100%', padding: '8px', marginBottom: '10px', boxSizing: 'border-box', border: '1px solid #ccc' }}
-          />
-        </div>
-        {/* Password Input */}
-        <div>
-          <label htmlFor="reg-password" style={{ display: 'block', marginBottom: '5px' }}>Password:</label>
-          <input
-            type="password"
-            id="reg-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            disabled={isLoading}
-            style={{ width: '100%', padding: '8px', marginBottom: '10px', boxSizing: 'border-box', border: '1px solid #ccc' }}
-          />
-        </div>
-        {/* First Name Input (Optional) */}
-        <div>
-          <label htmlFor="reg-firstname" style={{ display: 'block', marginBottom: '5px' }}>First Name (Optional):</label>
-          <input
-            type="text"
-            id="reg-firstname"
-            value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
-            disabled={isLoading}
-            style={{ width: '100%', padding: '8px', marginBottom: '10px', boxSizing: 'border-box', border: '1px solid #ccc' }}
-          />
-        </div>
-        {/* Last Name Input (Optional) */}
-        <div>
-          <label htmlFor="reg-lastname" style={{ display: 'block', marginBottom: '5px' }}>Last Name (Optional):</label>
-          <input
-            type="text"
-            id="reg-lastname"
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-            disabled={isLoading}
-            style={{ width: '100%', padding: '8px', marginBottom: '10px', boxSizing: 'border-box', border: '1px solid #ccc' }}
-          />
-        </div>
+  // --- Input Styling Class ---
+  const inputClasses = "appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm";
+  const labelClasses = "block text-sm font-medium text-gray-700 mb-1";
 
-        <button type="submit" disabled={isLoading} style={{ padding: '10px 15px', cursor: 'pointer', border: '1px solid #ccc' }}>
-          {isLoading ? 'Registering...' : 'Register'}
-        </button>
-      </form>
-      {/* Display Success or Error Messages */}
-      {successMessage && <p style={{ color: 'green', marginTop: '10px' }}>{successMessage}</p>}
-      {error && <p style={{ color: 'red', marginTop: '10px', fontWeight: 'bold' }}>{error}</p>}
+  return (
+    // Centering container with max width, similar to LoginPage
+    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-150px)] py-8"> {/* Added py-8 for vertical padding */}
+      <div className="w-full max-w-md p-8 space-y-6 bg-white shadow-md rounded-lg">
+        <h1 className="text-2xl font-bold text-center text-gray-900">Create your TechStop Account</h1>
+        <form onSubmit={handleSubmit} className="space-y-4"> {/* Reduced space-y slightly */}
+          {/* Username Input */}
+          <div>
+            <label htmlFor="reg-username" className={labelClasses}>Username</label>
+            <input
+              type="text"
+              id="reg-username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              disabled={isLoading}
+              className={inputClasses} // Apply consistent input style
+            />
+          </div>
+          {/* Email Input */}
+          <div>
+            <label htmlFor="reg-email" className={labelClasses}>Email address</label>
+            <input
+              type="email"
+              id="reg-email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={isLoading}
+              className={inputClasses} // Apply consistent input style
+            />
+          </div>
+          {/* Password Input */}
+          <div>
+            <label htmlFor="reg-password" className={labelClasses}>Password</label>
+            <input
+              type="password"
+              id="reg-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              disabled={isLoading}
+              className={inputClasses} // Apply consistent input style
+            />
+          </div>
+          {/* First Name Input (Optional) */}
+          <div>
+            <label htmlFor="reg-firstname" className={labelClasses}>First Name <span className="text-gray-500">(Optional)</span></label>
+            <input
+              type="text"
+              id="reg-firstname"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              disabled={isLoading}
+              className={inputClasses} // Apply consistent input style
+            />
+          </div>
+          {/* Last Name Input (Optional) */}
+          <div>
+            <label htmlFor="reg-lastname" className={labelClasses}>Last Name <span className="text-gray-500">(Optional)</span></label>
+            <input
+              type="text"
+              id="reg-lastname"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              disabled={isLoading}
+              className={inputClasses} // Apply consistent input style
+            />
+          </div>
+
+          {/* Display Success or Error Messages */}
+          {successMessage && (
+            <p className="text-sm text-green-600 text-center font-medium">
+              {successMessage}
+            </p>
+          )}
+          {error && (
+            <p className="text-sm text-red-600 text-center font-medium">
+              {error}
+            </p>
+          )}
+
+          {/* Submit Button */}
+          <div>
+            <button
+              type="submit"
+              disabled={isLoading}
+              // Consistent button styling with LoginPage
+              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoading ? 'Registering...' : 'Create Account'}
+            </button>
+          </div>
+        </form>
+        {/* Link to Login Page */}
+        <p className="mt-4 text-center text-sm text-gray-600">
+            Already have an account?{' '}
+            <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500">
+              Login
+            </Link>
+          </p>
+      </div>
     </div>
   );
 }
