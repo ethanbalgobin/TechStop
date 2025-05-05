@@ -5,7 +5,7 @@ function HomePage() {
         <div>
             <h1>Welcome to TechStop!</h1>
             <p>Browse our products or log in to manage your account!</p>
-            {/* Additonal linls will go here */}
+            {/* Additonal links will go here */}
         </div>
     );
 }

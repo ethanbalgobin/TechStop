@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+// client/src/App.jsx
+
+import React from 'react';
 // Import routing components
 import { Routes, Route } from 'react-router-dom';
 
@@ -9,76 +11,56 @@ import ProductsPage from './pages/ProductsPage';
 import LoginPage from './pages/LoginPage';
 import ProfilePage from './pages/ProfilePage';
 import RegistrationPage from './pages/RegistrationPage';
-import ProductDetailPage from './pages/ProductDetailPage'; 
+import ProductDetailPage from './pages/ProductDetailPage';
 import CartPage from './pages/CartPage';
+import CheckoutPage from './pages/CheckoutPage';
+import OrderSuccessPage from './pages/OrderSuccessPage'; // Import OrderSuccessPage
 
 // --- Import Utility Components ---
 import NavBar from './components/NavBar';
 import ProtectedRoute from './components/ProtectedRoute';
 
+// App component no longer manages auth state directly
 function App() {
-  // --- Authentication State ---
-  const [token, setToken] = useState(localStorage.getItem('authToken'));
-  const [user, setUser] = useState(() => {
-    const storedUserInfo = localStorage.getItem('userInfo');
-    try {
-      return storedUserInfo ? JSON.parse(storedUserInfo) : null;
-    } catch (e) {
-      console.error("Error parsing stored user info:", e);
-      localStorage.removeItem('userInfo');
-      localStorage.removeItem('authToken');
-      return null;
-    }
-  });
-
-  // --- Authentication Handlers ---
-  const handleLoginSuccess = (newToken, newUser) => {
-    console.log("App: handleLoginSuccess called.");
-    localStorage.setItem('authToken', newToken);
-    localStorage.setItem('userInfo', JSON.stringify(newUser));
-    setToken(newToken);
-    setUser(newUser);
-    // Navigation is handled within LoginPage
-  };
-
-  const handleLogout = () => {
-    console.log('App: handleLogout called...');
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('userInfo');
-    setToken(null);
-    setUser(null);
-    // Navigation after logout is handled within NavBar
-  };
 
   // --- Render Logic: Define Routes ---
+  // NavBar, LoginPage, ProtectedRoute now use useAuth() hook internally
   return (
     <div style={{ fontFamily: 'sans-serif' }}>
-      <NavBar token={token} handleLogout={handleLogout} />
+      <NavBar />
 
       <div style={{ padding: '20px' }}>
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<HomePage />} />
-          <Route
-              path="/login"
-              element={<LoginPage onLoginSuccess={handleLoginSuccess} />}
-          />
+          <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegistrationPage />} />
-          {/* Route for the main products list */}
           <Route path="/products" element={<ProductsPage />} />
           <Route path="/products/:productId" element={<ProductDetailPage />} />
-          <Route path="/cart" element={<CartPage/>} />
+          <Route path="/cart" element={<CartPage />} />
 
           {/* Protected Routes */}
           <Route
             path="/profile"
             element={
-              <ProtectedRoute token={token}>
-                <ProfilePage />
-              </ProtectedRoute>
+              <ProtectedRoute> <ProfilePage /> </ProtectedRoute>
             }
           />
-          {/* Add other protected routes here using the same pattern */}
+          <Route
+            path="/checkout"
+            element={
+              <ProtectedRoute> <CheckoutPage /> </ProtectedRoute>
+            }
+          />
+          {/* Add the route for the order success page */}
+          {/* It likely should be protected too, so users can't guess order IDs */}
+          <Route
+            path="/order-success/:orderId"
+            element={
+               <ProtectedRoute> <OrderSuccessPage /> </ProtectedRoute>
+            }
+           />
+          {/* Add other protected routes (e.g., /orders) here later */}
 
           {/* Catch-all route for 404 Not Found */}
           <Route path="*" element={<NotFoundPage />} />

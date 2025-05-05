@@ -19,6 +19,154 @@ app.use(express.json());
 
 // --- API Routes ---
 
+// === Order Creation API Route ===
+
+app.post('/api/orders', authenticateToken, async (req, res) => {
+    const userId = req.user.userId; // Get user ID from authenticated token
+    // Destructure expected data from the request body sent by the frontend
+    const { shippingDetails, items, total } = req.body;
+
+    console.log(`[API POST /api/orders] Attempting order creation for user ID: ${userId}`);
+
+    // --- Basic Validation ---
+    if (!shippingDetails || !items || !Array.isArray(items) || items.length === 0 || total === undefined || total === null) {
+        console.error(`[API POST /api/orders] Invalid order data received for user ID: ${userId}`, req.body);
+        return res.status(400).json({ error: 'Invalid order data. Shipping details and at least one item are required.' });
+    }
+    // Validate shipping details object
+    const { fullName, address1, address2, city, postcode, country } = shippingDetails; // Destructure address2 here as well
+    if (!fullName || !address1 || !city || !postcode || !country) {
+         return res.status(400).json({ error: 'Missing required shipping fields (Full Name, Address Line 1, City, Postcode, Country).' });
+    }
+    // Validate total amount
+     const numericTotal = Number(total);
+     if (isNaN(numericTotal) || numericTotal < 0) {
+         return res.status(400).json({ error: 'Invalid total amount.' });
+     }
+    // --- End Validation ---
+
+
+    // --- Database Transaction ---
+    // Use a client from the pool for transaction control
+    const client = await pool.connect();
+    console.log(`[API POST /api/orders] Database client acquired for user ID: ${userId}`);
+
+    try {
+        // Start the transaction
+        await client.query('BEGIN');
+        console.log(`[API POST /api/orders] Transaction started for user ID: ${userId}`);
+
+        // --- ADDRESS HANDLING ---
+        let shippingAddressId;
+
+        // 1a. Check if an identical shipping address already exists for this user
+        // Note: Removed state_province_region check for now as it's not collected
+        const findAddressQuery = `
+            SELECT id FROM addresses
+            WHERE user_id = $1           -- Param $1
+              AND address_line1 = $2     -- Param $2
+              AND (address_line2 = $3 OR (address_line2 IS NULL AND $3 IS NULL)) -- Param $3
+              AND city = $4              -- Param $4
+              AND postal_code = $5       -- Param $5 (was $6)
+              AND country = $6           -- Param $6 (was $7)
+              AND address_type = $7;     -- Param $7 (was $8)
+        `;
+        const findAddressValues = [
+            userId,                     // $1
+            shippingDetails.address1,   // $2
+            shippingDetails.address2 || null, // $3
+            shippingDetails.city,       // $4
+            shippingDetails.postcode,   // $5 
+            shippingDetails.country,    // $6 
+            'shipping'                  // $7 
+        ];
+        const existingAddressResult = await client.query(findAddressQuery, findAddressValues);
+
+        if (existingAddressResult.rows.length > 0) {
+            // 1b. Use existing address ID
+            shippingAddressId = existingAddressResult.rows[0].id;
+            console.log(`[API POST /api/orders] Found existing shipping address with ID: ${shippingAddressId} for user ID: ${userId}`);
+        } else {
+            // 1c. Insert New Shipping Address into 'addresses' table
+            console.log(`[API POST /api/orders] No identical shipping address found. Inserting new address for user ID: ${userId}`);
+            const insertAddressQuery = `
+                INSERT INTO addresses (user_id, address_line1, address_line2, city, state_province_region, postal_code, country, address_type)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                RETURNING id;
+            `;
+            const insertAddressValues = [
+                userId,                     // $1
+                shippingDetails.address1,   // $2
+                shippingDetails.address2 || null, // $3
+                shippingDetails.city,       // $4
+                null,                       // $5 - Placeholder for state_province_region
+                shippingDetails.postcode,   // $6
+                shippingDetails.country,    // $7
+                'shipping'                  // $8
+            ];
+            const newAddressResult = await client.query(insertAddressQuery, insertAddressValues);
+            shippingAddressId = newAddressResult.rows[0].id;
+            console.log(`[API POST /api/orders] New shipping address created with ID: ${shippingAddressId} for user ID: ${userId}`);
+        }
+        // --- END MODIFIED ADDRESS HANDLING ---
+
+
+        // 2. Insert Order into 'orders' table (remains the same)
+        const orderQuery = `
+            INSERT INTO orders (user_id, total_amount, status, shipping_address_id, billing_address_id)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING id, order_date, status;
+        `;
+        const orderValues = [ userId, numericTotal, 'Pending', shippingAddressId, shippingAddressId ];
+        const orderResult = await client.query(orderQuery, orderValues);
+        const newOrder = orderResult.rows[0];
+        const newOrderId = newOrder.id;
+        console.log(`[API POST /api/orders] Order created with ID: ${newOrderId} for user ID: ${userId}`);
+
+        // 3. Insert Order Items into 'order_items' table (remains the same)
+        const itemInsertQuery = `
+            INSERT INTO order_items (order_id, product_id, quantity, price_per_unit)
+            VALUES ($1, $2, $3, $4);
+        `;
+        await Promise.all(items.map(item => {
+            if (!item || !item.product || !item.product.id || !item.quantity || !item.product.price) {
+                console.error(`[API POST /api/orders] Invalid item structure in order for Order ID: ${newOrderId}`, item);
+                throw new Error('Invalid item data received in order.');
+            }
+            const itemValues = [ newOrderId, item.product.id, item.quantity, Number(item.product.price) ];
+            console.log(`[API POST /api/orders] Inserting order item for Order ID: ${newOrderId}, Product ID: ${item.product.id}`);
+            return client.query(itemInsertQuery, itemValues);
+        }));
+        console.log(`[API POST /api/orders] All ${items.length} order items inserted for Order ID: ${newOrderId}`);
+
+        // 4. Clear the user's cart (remains the same)
+        const clearCartQuery = 'DELETE FROM cart_items WHERE user_id = $1';
+        await client.query(clearCartQuery, [userId]);
+        console.log(`[API POST /api/orders] Cart cleared for user ID: ${userId}`);
+
+
+        // Commit the transaction (remains the same)
+        await client.query('COMMIT');
+        console.log(`[API POST /api/orders] Transaction committed for Order ID: ${newOrderId}`);
+
+        // Send success response (remains the same)
+        res.status(201).json({
+            message: 'Order placed successfully!',
+            order: { id: newOrder.id, orderDate: newOrder.order_date, status: newOrder.status, totalAmount: numericTotal }
+        });
+
+    } catch (error) {
+        // Rollback and error handling (remains the same)
+        await client.query('ROLLBACK');
+        console.error(`[API POST /api/orders] Transaction rolled back for user ID ${userId}. Error:`, error.stack);
+        res.status(500).json({ error: 'Internal Server Error placing order.' });
+    } finally {
+        // Release client (remains the same)
+        client.release();
+        console.log(`[API POST /api/orders] Database client released for user ID: ${userId}`);
+    }
+});
+
 app.get('/api/cart', authenticateToken, async (req, res) => {
     const userId = req.user.userId; // getting userId from token payload
     console.log(`[API GET /api/cart] Fetching cart for user ID ${userId}`);

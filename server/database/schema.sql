@@ -60,17 +60,28 @@ CREATE TABLE orders(
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- orders_items
+-- Index on user_id for faster lookup of user's orders
+CREATE INDEX idx_orders_user_id ON orders(user_id);
+-- Index on status for filtering orders
+CREATE INDEX idx_orders_status ON orders(status);
+
+
+-- orders_items table
     -- Purpose: A junction table to link the orders and prodcuts tablesm representing the items in each order.
     -- This resolves the many-to-many relationship between the two tables
 
-CREATE TABLE orders_items(
+CREATE TABLE order_items (
     id SERIAL PRIMARY KEY,
     order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-    product_id INTEGER NOT NULL REFERENCES prodcuts(id) ON DELETE RESTRICT, -- cannot delete product in parent table if it is part of an order
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT, -- restrict deletion if product is deleted to keep record of order
     quantity INTEGER NOT NULL CHECK (quantity > 0),
-    price_per_unit NUMERIC(10, 2) NOT NULL -- the price of the item at the time that the order was placed as pricing can be dynamic
+    price_per_unit NUMERIC(10,2) NOT NULL CHECK (price_per_unit >= 0),
 );
+
+-- Index on order_id for faster lookup of items in an order
+CREATE INDEX idx_order_items_order_id ON order_items(order_id);
+-- Index on product_id if you need to find orders containing a specific product
+CREATE INDEX idx_order_items_product_id ON order_items(product_id);
 
 -- cart_items
     -- Purpose: Creates a backend shopping cart for the users so that it is saved to their profile

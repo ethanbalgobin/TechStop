@@ -63,12 +63,13 @@ function CartPage() {
        borderRadius: '4px',
        marginLeft: '10px'
    };
-   const updateButtonStyle = {
+ /*  const updateButtonStyle = {
        ...buttonStyle,
        backgroundColor: '#007bff', // Blue for update actions if needed
        marginLeft: '0px', // Adjust spacing if needed
        marginRight: '5px'
    };
+*/
    const clearCartButtonStyle = {
        ...buttonStyle,
        backgroundColor: '#6c757d', // Gray for clear cart
@@ -77,7 +78,21 @@ function CartPage() {
        marginLeft: 'auto' // Align right if needed, or remove for default left
    };
 
-
+   const checkoutLinkStyle = {
+    display: 'inline-block', // Make it behave like a button
+    padding: '10px 15px',
+    backgroundColor: '#28a745', // Green color
+    color: 'white',
+    textDecoration: 'none', // Remove underline from link
+    borderRadius: '4px',
+    marginLeft: '10px', // Space from Clear Cart button
+    marginTop: '20px',
+    textAlign: 'center',
+    cursor: 'pointer',
+    border: 'none', // Make it look like a button
+    fontSize: '1em' // Match button font size perhaps
+};
+// --- End Styles ---
   return (
     <div>
       <h1>Your Shopping Cart</h1>
@@ -138,8 +153,10 @@ function CartPage() {
           </div>
           {/* Clear Cart Button */}
           <button onClick={clearCart} style={clearCartButtonStyle}>Clear Cart</button>
-          {/* TODO: Add Checkout Button/Link */}
-          <button style={{...clearCartButtonStyle, backgroundColor: '#28a745', marginLeft: '10px'}}>Proceed to Checkout (Placeholder)</button>
+          {/* Checkout Link (Styled as Button)*/}
+          <Link to="/checkout" style={checkoutLinkStyle}>
+              Proceed to Checkout
+          </Link>
         </>
       )}
     </div>
