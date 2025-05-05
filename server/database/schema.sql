@@ -72,6 +72,40 @@ CREATE TABLE orders_items(
     price_per_unit NUMERIC(10, 2) NOT NULL -- the price of the item at the time that the order was placed as pricing can be dynamic
 );
 
+-- cart_items
+    -- Purpose: Creates a backend shopping cart for the users so that it is saved to their profile
+CREATE TABLE cart_items (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- Foreign key linking to the users table
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE, -- Foreign key linking to the products table
+    quantity INTEGER NOT NULL CHECK (quantity > 0), -- Quantity of the product in the cart for the user
+    -- Timestamps --
+        -- This is useful to run reports to check how often carts are abandoned etc. and to send reminder emails ---
+    added_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 
+    -- Constraints
+    UNIQUE (user_id, product_id) -- User cannot have the same product listed twice, each row represents one product type per user cart
+    
+);
 
+--- INDEXES ---
 
+-- Index for faster lookup by user id
+CREATE INDEX idx_cart_items_user_id ON cart_items(user_id);
+
+--- FUNCTIONS ---
+
+-- Function and trigger to automatically update the 'updated_at' timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER update_cart_items_updated_at
+BEFORE UPDATE ON cart_items
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
