@@ -1,5 +1,3 @@
-// client/src/App.jsx
-
 import React, { useState } from 'react';
 // Import routing components
 import { Routes, Route } from 'react-router-dom';
@@ -11,7 +9,8 @@ import ProductsPage from './pages/ProductsPage';
 import LoginPage from './pages/LoginPage';
 import ProfilePage from './pages/ProfilePage';
 import RegistrationPage from './pages/RegistrationPage';
-import ProductDetailPage from './pages/ProductDetailPage'; // Import the new ProductDetailPage
+import ProductDetailPage from './pages/ProductDetailPage'; 
+import CartPage from './pages/CartPage';
 
 // --- Import Utility Components ---
 import NavBar from './components/NavBar';
@@ -67,9 +66,8 @@ function App() {
           <Route path="/register" element={<RegistrationPage />} />
           {/* Route for the main products list */}
           <Route path="/products" element={<ProductsPage />} />
-          {/* ADDED: Dynamic route for individual product details */}
-          {/* The ':productId' part is a URL parameter */}
           <Route path="/products/:productId" element={<ProductDetailPage />} />
+          <Route path="/cart" element={<CartPage/>} />
 
           {/* Protected Routes */}
           <Route

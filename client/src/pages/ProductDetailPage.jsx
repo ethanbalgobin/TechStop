@@ -3,15 +3,21 @@
 import React, { useState, useEffect } from 'react';
 // Import useParams to access URL parameters
 import { useParams, Link } from 'react-router-dom';
+// useCart hook
+import { useCart } from '../context/CartContext';
 
 function ProductDetailPage() {
   // Get the productId from the URL parameters (defined in the Route path)
   const { productId } = useParams();
+  // get the addToCart function from the CartContext
+  const { addToCart } = useCart();
 
   // State for the product data, loading status, and errors
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // giving user feedback after adding an item to the cart
+  const [addedMessage, setAddedMessage] = useState(' ');
 
   // Effect to fetch product data when the component mounts or productId changes
   useEffect(() => {
@@ -25,6 +31,7 @@ function ProductDetailPage() {
     console.log(`ProductDetailPage: Fetching product with ID: ${productId}`);
     setLoading(true);
     setError(null); // Clear previous errors
+    setAddedMessage(''); // clearing message on new product load
 
     // Fetch data for the specific product ID
     fetch(`/api/products/${productId}`)
@@ -52,6 +59,21 @@ function ProductDetailPage() {
 
   // Dependency array includes productId to refetch if the ID changes
   }, [productId]);
+
+  // Handler function for the Add to Cart button
+  const handleAddToCart = () => {
+    if(product) {
+      addToCart(product); // calling the function from context
+      console.log("ProductDetailPage: Added to cart:", product.name);
+      // temp message
+      setAddedMessage(`${product.name} added to cart!`);
+      // clear message after 3 seconds
+      setTimeout(() => setAddedMessage(''), 3000);
+      }
+      else {
+        console.error("ProductDetailPage: Cannot add to cart, product data not loaded.")
+      }
+    };
 
   // --- Render Logic ---
 
@@ -90,8 +112,12 @@ function ProductDetailPage() {
         {/* Placeholder for description - add this field to your DB/API if needed */}
         {product.description || 'No description available.'}
       </p>
-      {/* TODO: Add "Add to Cart" button here later */}
-      <button style={{marginTop: '20px'}}>Add to Cart (Placeholder)</button>
+      {/* "Add to Cart" button */}
+      <button onClick={handleAddToCart} style={{marginTop: '20px', padding: '10px 15px'}}>
+        Add to Cart
+      </button>
+      {/* Display feedback message */}
+      {addedMessage && <p style={{color: 'green', marginTop: '10px'}}>{addedMessage}</p>}
     </div>
   );
 }

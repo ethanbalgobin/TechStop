@@ -1,12 +1,14 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-// Import the custom hook to access auth context
-import { useAuth } from '../context/authContext'; // Adjust path if needed
+// Import the hooks to access context
+import { useAuth } from '../context/authContext'; // Auth context
+import { useCart } from '../context/CartContext';
 
 // NavBar no longer needs props for token or logout handler
 function NavBar() {
   // Get auth state and functions from context
-  const { token, logout } = useAuth(); // Use the hook here!
+  const { token, logout } = useAuth(); 
+  const { cartCount } = useCart(); // Getting the Cart count from CartContext
   const navigate = useNavigate();
 
   const onLogoutClick = () => {
@@ -16,7 +18,7 @@ function NavBar() {
     navigate('/login');
   };
 
-  // --- Styles (remain the same) ---
+  // --- Styles ---
   const navStyle = {
     backgroundColor: '#f0f0f0',
     padding: '10px 20px',
@@ -30,6 +32,12 @@ function NavBar() {
     margin: '0 10px',
     textDecoration: 'none',
     color: '#333',
+  };
+  const cartLinkStyle = {
+    margin: '0 10px',
+    textDecoration: 'none',
+    color: '#333',
+    fontWeight: 'bold',
   };
   const buttonStyle = {
     marginLeft: '10px',
@@ -45,7 +53,10 @@ function NavBar() {
         <Link to="/products" style={linkStyle}>Products</Link>
       </div>
       <div> {/* Right side links/buttons */}
-        {/* Use the token from context for conditional rendering */}
+        {/* Using the token from context for conditional rendering */}
+        <Link to="/cart" style={cartLinkStyle}>
+          Cart ({cartCount !== undefined ? cartCount : 0})
+        </Link>
         {token ? (
           // If logged in
           <>
