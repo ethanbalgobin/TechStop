@@ -38,4 +38,4 @@ dist-ssr
 Thumbs.db
 
 # Generated css
-output.css
+client/src/output.css
