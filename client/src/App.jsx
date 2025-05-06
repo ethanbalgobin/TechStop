@@ -16,10 +16,12 @@ import CheckoutPage from './pages/CheckoutPage';
 import OrderSuccessPage from './pages/OrderSuccessPage';
 import OrderHistoryPage from './pages/OrderHistoryPage';
 import OrderDetailPage from './pages/OrderDetailPage';
+import AdminDashboardPage from './pages/AdminDashboardPage';
 
 // --- Import Utility Components ---
 import NavBar from './components/NavBar';
 import ProtectedRoute from './components/ProtectedRoute';
+import AdminProtectedRoute from './components/adminProtectedRoute';
 
 function App() {
 
@@ -69,6 +71,16 @@ function App() {
             path="orders/:orderId"
             element={ <ProtectedRoute> <OrderDetailPage /> </ProtectedRoute>}
           />
+          {/* --- Protected Admin Routes --- */}
+          <Route
+            path="/admin/dashboard" // Example admin route
+            element={
+              <AdminProtectedRoute>
+                <AdminDashboardPage />
+              </AdminProtectedRoute>
+            }
+          />
+          {/* Add other admin routes here later, e.g., /admin/products, /admin/users */}
           {/* Catch-all route for 404 Not Found */}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>

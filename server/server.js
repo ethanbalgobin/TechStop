@@ -19,6 +19,44 @@ const authenticateToken = require('./middleware/authenticateToken');
 // --- Middleware ---
 app.use(cors());
 
+// === Admin Authentication Middleware ===
+// This middleware checks if the authenticated user is an admin
+const authenticateAdmin = async (req, res, next) => {
+    if (!req.user || !req.user.userId) {
+        console.warn('[Admin Middleware] No user found on request. Ensure authenticateToken runs first.');
+        return res.status(401).json({ error: 'Authentication required.' });
+    }
+
+    const userId = req.user.userId;
+    console.log(`[Admin Middleware] Checking admin status for user ID: ${userId}`);
+
+    try {
+        // Fetching the user's is_admin status from the database
+        const userQuery = 'SELECT is_admin FROM users WHERE id = $1';
+        const { rows } = await pool.query(userQuery, [userId]);
+
+        if (rows.length === 0) {
+            // User not found in DB, though token was valid (edge case)
+            console.warn(`[Admin Middleware] User ID ${userId} not found in database despite valid token.`);
+            return res.status(403).json({ error: 'Forbidden: User not found.' });
+        }
+
+        const user = rows[0];
+        if (user.is_admin === true) {
+            // User is an admin, proceed
+            console.log(`[Admin Middleware] User ID ${userId} is an admin. Access granted.`);
+            next();
+        } else {
+            // User is not an admin
+            console.log(`[Admin Middleware] User ID ${userId} is NOT an admin. Access denied.`);
+            return res.status(403).json({ error: 'Forbidden: Administrator access required.' });
+        }
+    } catch (error) {
+        console.error(`[Admin Middleware] Error checking admin status for user ID ${userId}:`, error.stack);
+        return res.status(500).json({ error: 'Internal Server Error checking admin privileges.' });
+    }
+};
+
 // --- API Routes ---
 
 // === Stripe Webhook Endpoint ===
@@ -781,8 +819,7 @@ app.post('/api/auth/login', async (req, res) => {
             res.status(200).json({
                 message: 'Login Successful!',
                 token: token,
-                user: { id: user.id, username: user.username, email: user.email }
-                // DO NOT send requires2FA: false here, absence implies not required
+                user: { id: user.id, username: user.username, email: user.email, is_admin: user.is_admin, is_2fa_enabled: user.is_2fa_enabled}
             });
         }
         // --- End 2FA Check ---
@@ -805,7 +842,7 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
     try {
         // Fetch user details from the database using the userId from the token
 
-        const getUserQuery = 'SELECT id, username, email, first_name, last_name, is_2fa_enabled FROM users WHERE id = $1';
+        const getUserQuery = 'SELECT id, username, email, first_name, last_name, is_2fa_enabled, is_admin FROM users WHERE id = $1';
         const { rows } = await pool.query(getUserQuery, [userId]);
         const userFromDb = rows[0];
 
@@ -822,7 +859,8 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
             email: userFromDb.email,
             first_name: userFromDb.first_name,
             last_name: userFromDb.last_name,
-            is_2fa_enabled: userFromDb.is_2fa_enabled
+            is_2fa_enabled: userFromDb.is_2fa_enabled,
+            is_admin: userFromDb.is_admin
             // Add any other non-sensitive fields you want the client to have
         });
 
@@ -955,7 +993,7 @@ app.post('/api/auth/verify-2fa', async (req, res) => {
 
     try {
         // 1. Fetch the user's stored secret and details
-        const queryText = 'SELECT id, username, email, totp_secret FROM users WHERE id = $1 AND is_2fa_enabled = TRUE;';
+        const queryText = 'SELECT id, username, email, totp_secret, is_admin, is_2fa_enabled FROM users WHERE id = $1 AND is_2fa_enabled = TRUE;';
         const { rows } = await pool.query(queryText, [userId]);
 
         if (rows.length === 0) {
@@ -987,7 +1025,7 @@ app.post('/api/auth/verify-2fa', async (req, res) => {
             res.status(200).json({
                 message: 'Login Successful!',
                 token: token,
-                user: { id: user.id, username: user.username, email: user.email }
+                user: { id: user.id, username: user.username, email: user.email, is_admin: user.is_admin, is_2fa_enabled: user.is_2fa_enabled }
             });
         } else {
             // 4. Code is invalid.
@@ -1103,6 +1141,14 @@ app.post('/api/auth/2fa/disable', authenticateToken, async (req, res) => {
         console.error(`[API POST /2fa/disable] Error disabling 2FA for user ID ${userId}:`, error.stack);
         res.status(500).json({ error: 'Internal Server Error disabling 2FA.' });
     }
+});
+
+// === Basic Admin-Only Test Route ===
+// This route is protected by both authenticateToken and authenticateAdmin
+app.get('/api/admin/test', authenticateToken, authenticateAdmin, (req, res) => {
+    // If execution reaches here, the user is authenticated and is an admin
+    console.log(`[API GET /api/admin/test] Accessed by admin user ID: ${req.user.userId}`);
+    res.json({ message: 'Welcome, Admin! You have accessed a protected admin route.' });
 });
 
 // --- Start the Server ---

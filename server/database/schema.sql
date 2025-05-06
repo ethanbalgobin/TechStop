@@ -14,7 +14,8 @@ CREATE TABLE users (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- when the user account was last updated
     is_2fa_enabled BOOLEAN NOT NULL DEFAULT FALSE,
     totp_secret TEXT,
-    totp_auth_url TEXT
+    totp_auth_url TEXT,
+    is_admin BOOLEAN NOT NULL DEFAULT FALSE -- if the user is an admin. this flag is set manually by a user with permissions to the db
 );
 
 COMMENT ON COLUMN users.is_2fa_enabled IS 'Flag indicating if Time-based One-Time Password (TOTP) 2FA is enabled.';

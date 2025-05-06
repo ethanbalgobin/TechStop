@@ -1,15 +1,18 @@
-import React, { createContext, useState, useContext, useEffect, useCallback } from 'react'; // Added useCallback
+import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 
-// 1. Create Context
+// 1. Create the Context
 const AuthContext = createContext(null);
 
 // 2. Create the Provider Component
 export function AuthProvider({ children }) {
+  // --- Existing State ---
   const [token, setToken] = useState(localStorage.getItem('authToken'));
   const [user, setUser] = useState(() => {
     const storedUserInfo = localStorage.getItem('userInfo');
     try {
-      return storedUserInfo ? JSON.parse(storedUserInfo) : null;
+      const initialUser = storedUserInfo ? JSON.parse(storedUserInfo) : null;
+      // Ensure is_admin is part of the initial user object if it exists
+      return initialUser;
     } catch (e) {
       console.error("AuthProvider: Error parsing stored user info on init:", e);
       localStorage.removeItem('userInfo');
@@ -18,35 +21,26 @@ export function AuthProvider({ children }) {
     }
   });
 
-  // --- State for 2FA Reminder ---
-  // Initialize based on initially loaded user state
   const [show2FAReminder, setShow2FAReminder] = useState(() => {
       const storedUserInfo = localStorage.getItem('userInfo');
       try {
           const initialUser = storedUserInfo ? JSON.parse(storedUserInfo) : null;
-          // Show reminder initially if user is loaded and 2FA is not enabled
           return !!initialUser && !initialUser.is_2fa_enabled;
       } catch {
-          return false; // Don't show if user info is corrupted
+          return false;
       }
   });
 
   // --- Logout function ---
-  // Defined earlier to be used in useEffect and login
-  const logout = useCallback(() => { // Wrap in useCallback
+  const logout = useCallback(() => {
     console.log("AuthProvider: logout function called.");
-    try {
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('userInfo');
-      setToken(null);
-      setUser(null);
-      // --- Reset reminder state on logout ---
-      setShow2FAReminder(false);
-      console.log("AuthProvider: State and localStorage cleared for logout.");
-    } catch (error) {
-        console.error("AuthProvider: Error during logout state update:", error);
-    }
-  }, []); // Empty dependency array as logout logic doesn't depend on external state
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('userInfo');
+    setToken(null);
+    setUser(null);
+    setShow2FAReminder(false);
+    console.log("AuthProvider: State and localStorage cleared for logout.");
+  }, []);
 
 
   // --- Effect to verify token validity on initial load ---
@@ -69,15 +63,14 @@ export function AuthProvider({ children }) {
           } else {
              console.log("AuthProvider: Token verified successfully.");
              const verifiedUser = await response.json();
-             if (!user || user.id !== verifiedUser.id || user.is_2fa_enabled !== verifiedUser.is_2fa_enabled) {
-                 console.log("AuthProvider: Updating user state after token verification.");
-                 setUser(verifiedUser);
+             // Ensuring user object from API includes is_admin
+             if (!user || user.id !== verifiedUser.id || user.is_2fa_enabled !== verifiedUser.is_2fa_enabled || user.is_admin !== verifiedUser.is_admin) {
+                 console.log("AuthProvider: Updating user state after token verification.", verifiedUser);
+                 setUser(verifiedUser); // This user object should have is_admin
                  localStorage.setItem('userInfo', JSON.stringify(verifiedUser));
-                 // --- Update reminder state based on verified user ---
-                 setShow2FAReminder(!verifiedUser.is_2fa_enabled);
+                 setShow2FAReminder(!!verifiedUser && !verifiedUser.is_2fa_enabled);
              } else {
-                 // User state is already consistent, ensure reminder state matches
-                 setShow2FAReminder(!user.is_2fa_enabled);
+                 setShow2FAReminder(!!user && !user.is_2fa_enabled);
              }
           }
         } catch (error) {
@@ -85,48 +78,44 @@ export function AuthProvider({ children }) {
         }
       } else {
          console.log("AuthProvider: No token found on initial load.");
-         // Ensure reminder is false if no token
          setShow2FAReminder(false);
       }
     };
     verifyToken();
-  }, [token, user, logout]); // Rerun if token changes or user state is inconsistent
+  }, [token, user, logout]); // Added user to dependencies to re-check if user object changes externally
 
 
   // --- Login function ---
   const login = useCallback((newToken, newUser) => {
     console.log("AuthProvider: login function called.");
-    try {
-      localStorage.setItem('authToken', newToken);
-      localStorage.setItem('userInfo', JSON.stringify(newUser));
-      setToken(newToken);
-      setUser(newUser);
-      // --- Set reminder state based on logged-in user ---
-      // Show reminder only if user exists and 2FA is not enabled
-      setShow2FAReminder(!!newUser && !newUser.is_2fa_enabled);
-      console.log("AuthProvider: State and localStorage updated for login. Show reminder:", !!newUser && !newUser.is_2fa_enabled);
-    } catch (error) {
-        console.error("AuthProvider: Error during login state update:", error);
-    }
-  }, []); // Empty dependency array as login logic itself doesn't depend on external state
+    localStorage.setItem('authToken', newToken);
+    localStorage.setItem('userInfo', JSON.stringify(newUser)); // newUser should include is_admin from login API
+    setToken(newToken);
+    setUser(newUser);
+    setShow2FAReminder(!!newUser && !newUser.is_2fa_enabled);
+    console.log("AuthProvider: State and localStorage updated for login. User:", newUser, "Show reminder:", !!newUser && !newUser.is_2fa_enabled);
+  }, []);
 
 
-  // --- Function to dismiss the reminder for the current session ---
+  // --- Dismiss 2FA Reminder function ---
   const dismiss2FAReminder = useCallback(() => {
       console.log("AuthProvider: Dismissing 2FA reminder for this session.");
       setShow2FAReminder(false);
-  }, []); // Empty dependency array
+  }, []);
 
+
+  // --- Add isAdmin derived state ---
+  const isAdmin = !!user && user.is_admin === true;
 
   // 3. Value provided by the context
-  // --- Added show2FAReminder and dismiss2FAReminder ---
   const value = {
     token,
-    user,
+    user,       // Contains full user object including is_admin
+    isAdmin,    // --- Convenient boolean flag ---
     login,
     logout,
-    show2FAReminder,     // Expose the reminder state
-    dismiss2FAReminder, // Expose the dismiss function
+    show2FAReminder,
+    dismiss2FAReminder,
   };
 
   // 4. Return the Provider component
@@ -139,9 +128,5 @@ export function useAuth() {
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
-
-   if (context === null) {
-      console.warn('useAuth returning null, provider might not be ready or value is null.');
-   }
   return context;
 }
