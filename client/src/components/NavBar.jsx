@@ -1,12 +1,12 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-// Import hooks to access context
 import { useAuth } from '../context/AuthContext'; 
 import { useCart } from '../context/CartContext';
 
 function NavBar() {
   // Get auth state and functions from context
-  const { token, logout } = useAuth();
+  // --- Destructure show2FAReminder ---
+  const { token, logout, show2FAReminder } = useAuth();
   // Get cart count from CartContext
   const { cartCount } = useCart();
   const navigate = useNavigate();
@@ -16,87 +16,89 @@ function NavBar() {
     navigate('/login');
   };
 
+  // --- Styles ---
+  const navStyle = {
+    backgroundColor: '#f0f0f0', // light grey
+    padding: '10px 20px',
+    marginBottom: '15px',
+    borderBottom: '1px solid #ccc',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  };
+  const linkStyle = {
+    margin: '0 10px',
+    textDecoration: 'none',
+    color: '#333',
+    position: 'relative', // Needed for absolute positioning of the dot
+    display: 'inline-block', // Needed for positioning context
+  };
+   const cartLinkStyle = {
+    margin: '0 10px',
+    textDecoration: 'none',
+    color: '#333',
+    fontWeight: 'bold',
+  };
+  const buttonStyle = {
+    marginLeft: '10px',
+    padding: '5px 10px',
+    cursor: 'pointer',
+  };
+  // --- Style for the reminder dot ---
+  const reminderDotStyle = {
+      position: 'absolute',
+      top: '0px', // Adjust position as needed
+      right: '-8px', // Adjust position as needed
+      width: '8px',
+      height: '8px',
+      backgroundColor: 'red',
+      borderRadius: '50%',
+  };
+  // --- End Styles ---
+
   return (
-    // Main nav container: White background, subtle bottom border, padding, flex layout
-    <nav className="bg-white border-b border-gray-200 px-4 sm:px-6 lg:px-8 shadow-sm">
-      {/* Use flex container for the overall layout */}
-      <div className="flex justify-between items-center h-14"> {/* Fixed height */}
+    <nav style={navStyle}>
+      {/* Left side links */}
+      <div className="flex items-center space-x-2 sm:space-x-4 flex-1 justify-start">
+        <Link to="/" style={linkStyle}>Home</Link>
+        <Link to="/products" style={linkStyle}>Products</Link>
+      </div>
 
-        {/* Left side links: */}
-        <div className="flex items-center space-x-2 sm:space-x-4 flex-1 justify-start"> {/* flex-1 allows it to grow, justify-start aligns left */}
-          <Link
-            to="/"
-            className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-          >
-            Home
-          </Link>
-          <Link
-            to="/products"
-            className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-          >
-            Products
-          </Link>
-        </div>
+      {/* Center Brand Name */}
+      <div className="flex-shrink-0">
+         <Link to="/" className="font-semibold text-lg text-gray-800 hover:text-gray-900">
+           TechStop
+         </Link>
+      </div>
 
-        {/* Center Brand Name */}
-        <div className="flex-shrink-0"> {/* Prevents the brand from shrinking too much */}
-           <Link to="/" className="font-semibold text-lg text-gray-800 hover:text-gray-900">
-             TechStop
-           </Link>
-        </div>
+      {/* Right side links/buttons */}
+      <div className="flex items-center space-x-2 sm:space-x-4 flex-1 justify-end">
+        {/* Cart Link */}
+        <Link to="/cart" style={cartLinkStyle}>
+          Cart ({cartCount !== undefined ? cartCount : 0})
+        </Link>
 
-
-        {/* Right side links/buttons: Use fixed width or flex-basis for balancing */}
-        <div className="flex items-center space-x-2 sm:space-x-4 flex-1 justify-end"> {/* flex-1 allows it to grow, justify-end aligns right */}
-          {/* Cart Link */}
-          <Link
-            to="/cart"
-            className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-          >
-            Cart ({cartCount !== undefined ? cartCount : 0})
-          </Link>
-
-          {token ? (
-            // If logged in
-            <>
-              <Link
-                to="/orders"
-                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-              >
-                Orders
-              </Link>
-              <Link
-                to="/profile"
-                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-              >
-                Profile
-              </Link>
-              {/* Styled Logout Button */}
-              <button
-                onClick={onLogoutClick}
-                className="px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-              >
-                Logout
-              </button>
-            </>
-          ) : (
-            // If logged out
-            <>
-              <Link
-                to="/login"
-                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-              >
-                Login
-              </Link>
-              <Link
-                to="/register"
-                className="px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                Register
-              </Link>
-            </>
-          )}
-        </div>
+        {token ? (
+          // If logged in
+          <>
+            <Link to="/orders" style={linkStyle}>Orders</Link>
+            {/* Profile Link with conditional reminder dot */}
+            <Link to="/profile" style={linkStyle}>
+              Profile
+              {/* --- Conditionally render reminder dot --- */}
+              {show2FAReminder && (
+                <span style={reminderDotStyle} title="2FA Setup Recommended"></span>
+              )}
+            </Link>
+            <button onClick={onLogoutClick} style={buttonStyle}>Logout</button>
+          </>
+        ) : (
+          // If logged out
+          <>
+            <Link to="/login" style={linkStyle}>Login</Link>
+            <Link to="/register" style={linkStyle}>Register</Link>
+          </>
+        )}
       </div>
     </nav>
   );

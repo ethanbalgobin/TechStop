@@ -1,8 +1,6 @@
-// client/src/context/AuthContext.jsx
+import React, { createContext, useState, useContext, useEffect, useCallback } from 'react'; // Added useCallback
 
-import React, { createContext, useState, useContext, useEffect } from 'react';
-
-// 1. Create the Context
+// 1. Create Context
 const AuthContext = createContext(null);
 
 // 2. Create the Provider Component
@@ -20,20 +18,36 @@ export function AuthProvider({ children }) {
     }
   });
 
-  // --- Logout function (defined before useEffect so it can be used as dependency) ---
-  // useCallback might be used here in more complex scenarios, but for now this is fine.
-  const logout = () => {
+  // --- State for 2FA Reminder ---
+  // Initialize based on initially loaded user state
+  const [show2FAReminder, setShow2FAReminder] = useState(() => {
+      const storedUserInfo = localStorage.getItem('userInfo');
+      try {
+          const initialUser = storedUserInfo ? JSON.parse(storedUserInfo) : null;
+          // Show reminder initially if user is loaded and 2FA is not enabled
+          return !!initialUser && !initialUser.is_2fa_enabled;
+      } catch {
+          return false; // Don't show if user info is corrupted
+      }
+  });
+
+  // --- Logout function ---
+  // Defined earlier to be used in useEffect and login
+  const logout = useCallback(() => { // Wrap in useCallback
     console.log("AuthProvider: logout function called.");
     try {
       localStorage.removeItem('authToken');
       localStorage.removeItem('userInfo');
       setToken(null);
       setUser(null);
+      // --- Reset reminder state on logout ---
+      setShow2FAReminder(false);
       console.log("AuthProvider: State and localStorage cleared for logout.");
     } catch (error) {
         console.error("AuthProvider: Error during logout state update:", error);
     }
-  };
+  }, []); // Empty dependency array as logout logic doesn't depend on external state
+
 
   // --- Effect to verify token validity on initial load ---
   useEffect(() => {
@@ -41,72 +55,78 @@ export function AuthProvider({ children }) {
       if (token) {
         console.log("AuthProvider: Verifying token found on initial load:", token);
         try {
-          const response = await fetch('/api/auth/me', { // Your protected endpoint
+          const response = await fetch('/api/auth/me', {
             method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', },
           });
-
           if (!response.ok) {
-            // If status is 401 or 403, the token is invalid/expired
             if (response.status === 401 || response.status === 403) {
               console.warn(`AuthProvider: Token verification failed (${response.status}). Logging out.`);
-              logout(); // Call logout to clear invalid token
+              logout();
             } else {
-              // Handle other potential errors (e.g., server error 500)
               console.error(`AuthProvider: Error verifying token, status: ${response.status}`);
-              // Decide if logout is appropriate for other errors too, maybe not.
             }
-            // Optionally update user state based on successful verification
-            // const verifiedUser = await response.json(); // If endpoint returns user data
-            // setUser(verifiedUser); // Update user state if needed
           } else {
              console.log("AuthProvider: Token verified successfully.");
-             // Optional: Ensure user state is consistent with token if needed
-             // (e.g., fetch user data if not already loaded correctly)
-             if (!user) {
-                const userData = await response.json();
-                setUser(userData);
-                localStorage.setItem('userInfo', JSON.stringify(userData)); // Re-sync localStorage if needed
+             const verifiedUser = await response.json();
+             if (!user || user.id !== verifiedUser.id || user.is_2fa_enabled !== verifiedUser.is_2fa_enabled) {
+                 console.log("AuthProvider: Updating user state after token verification.");
+                 setUser(verifiedUser);
+                 localStorage.setItem('userInfo', JSON.stringify(verifiedUser));
+                 // --- Update reminder state based on verified user ---
+                 setShow2FAReminder(!verifiedUser.is_2fa_enabled);
+             } else {
+                 // User state is already consistent, ensure reminder state matches
+                 setShow2FAReminder(!user.is_2fa_enabled);
              }
           }
         } catch (error) {
-          // Handle network errors during verification
           console.error("AuthProvider: Network error during token verification:", error);
         }
       } else {
          console.log("AuthProvider: No token found on initial load.");
+         // Ensure reminder is false if no token
+         setShow2FAReminder(false);
       }
     };
-
     verifyToken();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]); // Rerun effect if token changes (e.g., after login)
+  }, [token, user, logout]); // Rerun if token changes or user state is inconsistent
 
 
-  // Login function: Updates state and localStorage
-  const login = (newToken, newUser) => {
+  // --- Login function ---
+  const login = useCallback((newToken, newUser) => {
     console.log("AuthProvider: login function called.");
     try {
       localStorage.setItem('authToken', newToken);
       localStorage.setItem('userInfo', JSON.stringify(newUser));
-      setToken(newToken); // This state update will trigger the useEffect above
+      setToken(newToken);
       setUser(newUser);
-      console.log("AuthProvider: State and localStorage updated for login.");
+      // --- Set reminder state based on logged-in user ---
+      // Show reminder only if user exists and 2FA is not enabled
+      setShow2FAReminder(!!newUser && !newUser.is_2fa_enabled);
+      console.log("AuthProvider: State and localStorage updated for login. Show reminder:", !!newUser && !newUser.is_2fa_enabled);
     } catch (error) {
         console.error("AuthProvider: Error during login state update:", error);
     }
-  };
+  }, []); // Empty dependency array as login logic itself doesn't depend on external state
+
+
+  // --- Function to dismiss the reminder for the current session ---
+  const dismiss2FAReminder = useCallback(() => {
+      console.log("AuthProvider: Dismissing 2FA reminder for this session.");
+      setShow2FAReminder(false);
+  }, []); // Empty dependency array
 
 
   // 3. Value provided by the context
+  // --- Added show2FAReminder and dismiss2FAReminder ---
   const value = {
     token,
     user,
     login,
-    logout, // Use the logout function defined above
+    logout,
+    show2FAReminder,     // Expose the reminder state
+    dismiss2FAReminder, // Expose the dismiss function
   };
 
   // 4. Return the Provider component
@@ -117,14 +137,11 @@ export function AuthProvider({ children }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    // This error means useAuth was called outside of AuthProvider
     throw new Error('useAuth must be used within an AuthProvider');
   }
+
    if (context === null) {
-     // This means AuthProvider hasn't mounted or provided a value yet.
-     // Can happen during initial render cycles.
-     console.warn('useAuth returning null, provider might not be ready or value is null.');
-     // Depending on usage, components might need to handle this null case gracefully.
+      console.warn('useAuth returning null, provider might not be ready or value is null.');
    }
   return context;
 }
