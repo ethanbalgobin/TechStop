@@ -1456,6 +1456,150 @@ app.delete('/api/admin/categories/:categoryId', authenticateToken, authenticateA
     }
 });
 
+// === Admin Order Management API Routes ===
+
+// GET /api/admin/orders - Fetch all orders for admin view
+app.get('/api/admin/orders', authenticateToken, authenticateAdmin, async (req, res) => {
+    console.log(`[API GET /api/admin/orders] Admin request to fetch all orders by admin user ID: ${req.user.userId}`);
+    try {
+        // Query to get all order details, joining with users table to get user email/username
+        // Ordering by order_date descending to show newest orders first
+        const query = `
+            SELECT
+                o.id AS order_id,
+                o.order_date,
+                o.total_amount,
+                o.status,
+                o.shipping_address_id,
+                o.billing_address_id,
+                o.payment_intent_id,
+                u.id AS user_id,
+                u.username AS user_username,
+                u.email AS user_email
+            FROM orders o
+            JOIN users u ON o.user_id = u.id
+            ORDER BY o.order_date DESC;
+        `;
+        const { rows } = await pool.query(query);
+
+        console.log(`[API GET /api/admin/orders] Found ${rows.length} total orders.`);
+
+        // Send the list of all orders back to the client
+        res.status(200).json(rows);
+
+    } catch (error) {
+        console.error('[API GET /api/admin/orders] Error fetching all orders for admin:', error.stack);
+        res.status(500).json({ error: 'Internal Server Error fetching all orders.' });
+    }
+});
+
+// ... Fetch Single Order Details API Route ...
+// This route is protected by both authenticateToken and authenticateAdmin
+app.get('/api/admin/orders/:orderId', authenticateToken, authenticateAdmin, async (req, res) => {
+    const { orderId } = req.params;
+    const adminUserId = req.user.userId;
+
+    // Validate orderId is a number
+    const intOrderId = parseInt(orderId, 10);
+    if (isNaN(intOrderId)) {
+        return res.status(400).json({ error: 'Invalid Order ID format.' });
+    }
+
+    console.log(`[API GET /api/admin/orders/:orderId] Admin User ID: ${adminUserId} fetching details for Order ID: ${intOrderId}`);
+
+    try {
+        // --- Fetch main order details ---.
+        const orderQuery = `
+            SELECT
+                o.id AS order_id,
+                o.order_date,
+                o.total_amount,
+                o.status,
+                o.shipping_address_id,
+                o.billing_address_id,
+                o.payment_intent_id,
+                o.user_id,
+                u.username AS customer_username,
+                u.email AS customer_email
+            FROM orders o
+            JOIN users u ON o.user_id = u.id
+            WHERE o.id = $1;
+        `;
+        const orderResult = await pool.query(orderQuery, [intOrderId]);
+
+        // Check if order exists
+        if (orderResult.rows.length === 0) {
+            console.log(`[API GET /api/admin/orders/:orderId] Order ID: ${intOrderId} not found.`);
+            return res.status(404).json({ error: 'Order not found.' });
+        }
+        const orderDetails = orderResult.rows[0];
+
+        // --- Fetch associated order items ---
+        // Join with products table to get product details
+        const itemsQuery = `
+            SELECT
+                oi.product_id,
+                oi.quantity,
+                oi.price_per_unit, -- Price at the time of order
+                p.name AS product_name,
+                p.image_url AS product_image_url
+            FROM order_items oi
+            JOIN products p ON oi.product_id = p.id
+            WHERE oi.order_id = $1
+            ORDER BY p.name ASC;
+        `;
+        const itemsResult = await pool.query(itemsQuery, [intOrderId]);
+        const orderItems = itemsResult.rows.map(item => ({
+            productId: item.product_id,
+            quantity: item.quantity,
+            pricePerUnit: item.price_per_unit,
+            name: item.product_name,
+            imageUrl: item.product_image_url
+        }));
+        console.log(`[API GET /api/admin/orders/:orderId] Found ${orderItems.length} items for Order ID: ${intOrderId}`);
+
+
+        // --- Fetch shipping address details ---
+        let shippingAddress = null;
+        if (orderDetails.shipping_address_id) {
+            const addressQuery = `
+                SELECT
+                    id AS address_id,
+                    address_line1,
+                    address_line2,
+                    city,
+                    state_province_region,
+                    postal_code,
+                    country
+                FROM addresses
+                WHERE id = $1; 
+                -- No need to check user_id here for admin, as admin can see any order's address
+            `;
+            const addressResult = await pool.query(addressQuery, [orderDetails.shipping_address_id]);
+            if (addressResult.rows.length > 0) {
+                shippingAddress = addressResult.rows[0];
+                console.log(`[API GET /api/admin/orders/:orderId] Found shipping address for Order ID: ${intOrderId}`);
+            } else {
+                 console.warn(`[API GET /api/admin/orders/:orderId] Shipping address ID ${orderDetails.shipping_address_id} not found for Order ID: ${intOrderId}`);
+            }
+        } else {
+             console.log(`[API GET /api/admin/orders/:orderId] No shipping address ID associated with Order ID: ${intOrderId}`);
+        }
+
+        // --- Combine results and send response ---
+        const fullOrderDetails = {
+            ...orderDetails, // Spread main order details (id, date, total, status, address IDs, user info)
+            items: orderItems, // Add the array of items
+            shippingAddress: shippingAddress // Add the fetched shipping address object (or null)
+        };
+
+        res.status(200).json(fullOrderDetails);
+
+    } catch (error) {
+        console.error(`[API GET /api/admin/orders/:orderId] Error fetching details for Order ID ${intOrderId}:`, error.stack);
+        res.status(500).json({ error: 'Internal Server Error fetching order details.' });
+    }
+});
 
 // --- Start the Server ---
 app.listen(PORT, () => {
