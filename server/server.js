@@ -1601,6 +1601,58 @@ app.get('/api/admin/orders/:orderId', authenticateToken, authenticateAdmin, asyn
     }
 });
 
+// === NEW: Admin - Update Order Status API Route ===
+// This route is protected by both authenticateToken and authenticateAdmin
+app.put('/api/admin/orders/:orderId/status', authenticateToken, authenticateAdmin, async (req, res) => {
+    const { orderId } = req.params; // Get order ID from URL parameter
+    const { status } = req.body; // Get the new status from the request body
+    const adminUserId = req.user.userId; // For logging
+
+    // Validate orderId
+    const intOrderId = parseInt(orderId, 10);
+    if (isNaN(intOrderId)) {
+        return res.status(400).json({ error: 'Invalid Order ID format.' });
+    }
+
+    if (!status || typeof status !== 'string' || status.trim() === '') {
+        return res.status(400).json({ error: 'New status is required and must be a non-empty string.' });
+    }
+
+    const validStatuses = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled', 'Refunded'];
+    if (!validStatuses.includes(status)) {
+        return res.status(400).json({ error: `Invalid status value. Must be one of: ${validStatuses.join(', ')}` });
+    }
+
+    console.log(`[API PUT /api/admin/orders/:orderId/status] Admin User ID: 
+        ${adminUserId} updating status for Order ID: ${intOrderId} to "${status}"`);
+
+    try {
+        // Update the order status and updated_at timestamp in the database
+        const updateQuery = `
+            UPDATE orders
+            SET status = $1,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $2
+            RETURNING *; -- Return the full updated order
+        `;
+        const { rows, rowCount } = await pool.query(updateQuery, [status, intOrderId]);
+
+        if (rowCount === 0) {
+            // Order not found
+            console.log(`[API PUT /api/admin/orders/:orderId/status] Order ID: ${intOrderId} not found.`);
+            return res.status(404).json({ error: 'Order not found.' });
+        }
+
+        const updatedOrder = rows[0];
+        console.log(`[API PUT /api/admin/orders/:orderId/status] Order ID: ${intOrderId} status updated to "${updatedOrder.status}"`);
+        res.status(200).json(updatedOrder);
+
+    } catch (error) {
+        console.error(`[API PUT /api/admin/orders/:orderId/status] Error updating status for Order ID ${intOrderId}:`, error.stack);
+        res.status(500).json({ error: 'Internal Server Error updating order status.' });
+    }
+});
+
 // --- Start the Server ---
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
