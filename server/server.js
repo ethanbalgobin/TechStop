@@ -3,6 +3,8 @@ const cors = require('cors'); // For communication between the frontend and back
 const bcrypt = require('bcrypt'); // For password hashing
 const jwt = require('jsonwebtoken'); // For generating JWT tokens
 require('dotenv').config(); // Ensure dotenv runs first
+const speakeasy = require('speakeasy');
+const qrcode = require('qrcode');
 
 // Import the database pool directly from db.js
 const pool = require('./db'); 
@@ -731,66 +733,63 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 // --- Login ---
+// === UPDATED: Login Route (Checks for 2FA) ===
 app.post('/api/auth/login', async (req, res) => {
-    const {email, password } = req.body // can login with email or username
-    console.log('Login attempt for:', email);
+    const { email, password } = req.body;
+    console.log('[API POST /login] Login attempt for:', email);
 
-    if(!email || !password) {
-        return res.status(400).json({error: 'Email and password are required.'});
+    if (!email || !password) {
+        return res.status(400).json({ error: 'Email and password are required.' });
     }
 
     try {
-        // 1. Find the user by email (or username)
-        const queryText = 'SELECT id, username, email, password_hash FROM users WHERE email = $1';
+        // 1. Find the user by email
+        const queryText = 'SELECT id, username, email, password_hash, is_2fa_enabled FROM users WHERE email = $1';
         const values = [email];
         const result = await pool.query(queryText, values);
 
         if (result.rows.length === 0) {
-            // User not found
-            console.log('Login failed: User not found for email:', email);
-            return res.status(401).json({error: 'Invalid credentials.'}); // 401 Unauthorised
+            console.log('[API POST /login] Login failed: User not found for email:', email);
+            return res.status(401).json({ error: 'Invalid credentials.' });
         }
-
         const user = result.rows[0];
 
-        // 2. Compare the provided password with thw stored hash
+        // 2. Compare password
         const isMatch = await bcrypt.compare(password, user.password_hash);
-
-        if(!isMatch) {
-            // Password mismatch
-            console.log('Login failed: Incorrect password for email:', email);
-            return res.status(401).json({error: 'Invalid credentials.'}); // 401 Unauthorised
+        if (!isMatch) {
+            console.log('[API POST /login] Login failed: Incorrect password for email:', email);
+            return res.status(401).json({ error: 'Invalid credentials.' });
         }
 
-        // 3. Passwords match - Generate JWT token
-        const payload = {
-            userId: user.id,
-            username: user.username
-        };
+        // --- Check if 2FA is enabled ---
+        if (user.is_2fa_enabled) {
+            // 3a. If 2FA is enabled, DO NOT send token yet.
+            // Send response indicating 2FA is required.
+            // Include userId/email to be used in the next step
+            console.log(`[API POST /login] 2FA required for user ID: ${user.id}`);
+            res.status(200).json({
+                requires2FA: true,
+                userId: user.id, // Send userId and email to frontend to use in the next step
+                email: user.email 
+            });
+        } else {
+            // 3b. If 2FA is not enabled, generate and send JWT token as before.
+            console.log(`[API POST /login] Login successful (2FA not enabled) for user ID: ${user.id}`);
+            const payload = { userId: user.id, username: user.username };
+            const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-        // Signing token with secret key and defining expiration time
-        const token = jwt.sign(
-            payload,
-            process.env.JWT_SECRET,
-            {expiresIn: '1h'} // Tokens expire in one hour (can be adjusted)
-        );
-
-        console.log('Login Successful, token generated for:', email);
-
-        // 4. Sending token and user info back to client
-        res.json({
-            message: 'Login Successful!',
-            token: token,
-            user: {
-                id: user.id,
-                username: user.username,
-                email: user.email
-            }
-        });
+            res.status(200).json({
+                message: 'Login Successful!',
+                token: token,
+                user: { id: user.id, username: user.username, email: user.email }
+                // DO NOT send requires2FA: false here, absence implies not required
+            });
+        }
+        // --- End 2FA Check ---
 
     } catch (err) {
-        console.error('Error during login', err.stack);
-        res.status(500).json({error: 'Internal Server Error during login.'});
+        console.error('[API POST /login] Error during login:', err.stack);
+        res.status(500).json({ error: 'Internal Server Error during login.' });
     }
 });
 
@@ -805,8 +804,8 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
 
     try {
         // Fetch user details from the database using the userId from the token
-        // Avoid selecting the password hash!
-        const getUserQuery = 'SELECT id, username, email, first_name, last_name FROM users WHERE id = $1';
+
+        const getUserQuery = 'SELECT id, username, email, first_name, last_name, is_2fa_enabled FROM users WHERE id = $1';
         const { rows } = await pool.query(getUserQuery, [userId]);
         const userFromDb = rows[0];
 
@@ -822,7 +821,8 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
             username: userFromDb.username,
             email: userFromDb.email,
             first_name: userFromDb.first_name,
-            last_name: userFromDb.last_name
+            last_name: userFromDb.last_name,
+            is_2fa_enabled: userFromDb.is_2fa_enabled
             // Add any other non-sensitive fields you want the client to have
         });
 
@@ -891,6 +891,170 @@ app.post('/api/create-payment-intent', authenticateToken, async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error creating payment intent.' });
     }
 });
+
+// === 2FA Setup API Routes ===
+
+// --- Generate 2FA Secret and QR Code ---
+// This endpoint generates a temporary secret and QR code for setup.
+// It doesn't save anything permanently until verification.
+app.post('/api/auth/2fa/generate', authenticateToken, async (req, res) => {
+    const userId = req.user.userId;
+    const username = req.user.username; // Get username from token payload
+
+    console.log(`[API POST /2fa/generate] Generating 2FA secret for user ID: ${userId}`);
+
+    try {
+        // Generate a new TOTP secret using Speakeasy
+        const secret = speakeasy.generateSecret({
+            name: `TechStop (${username})`, // Label shown in authenticator app
+            issuer: 'TechStop' // Your application name
+        });
+
+        // secret.ascii: The secret key in ASCII format
+        // secret.base32: The secret key in Base32 format
+        // secret.otpauth_url: A URL including the secret for easy QR code generation
+
+        console.log(`[API POST /2fa/generate] Secret generated for user ID: ${userId}`);
+        // console.log(secret); // For debugging - DO NOT log secrets in production
+
+        // Generate QR code data URL from the otpauth_url
+        qrcode.toDataURL(secret.otpauth_url, (err, data_url) => {
+            if (err) {
+                console.error('[API POST /2fa/generate] QR Code generation error:', err);
+                return res.status(500).json({ error: 'Could not generate QR code.' });
+            }
+
+            console.log(`[API POST /2fa/generate] QR Code generated for user ID: ${userId}`);
+
+            // Send back the temporary secret (Base32) and the QR code data URL
+            // The frontend needs the secret temporarily to verify the first code.
+            res.json({
+                secret: secret.base32, // Send Base32 secret for manual entry if needed
+                qrCodeUrl: data_url, // Send QR code image data URL
+                otpauthUrl: secret.otpauth_url // Send the raw URL (in case)
+            });
+        });
+
+    } catch (error) {
+        console.error(`[API POST /2fa/generate] Error generating 2FA secret for user ID ${userId}:`, error.stack);
+        res.status(500).json({ error: 'Internal Server Error generating 2FA secret.' });
+    }
+});
+
+// === Verify 2FA Code After Login ===
+// This endpoint is called after successful password login IF 2FA is required.
+app.post('/api/auth/verify-2fa', async (req, res) => {
+    // Expecting userId (sent back from /login) and the totpCode from the user's app
+    const { userId, totpCode } = req.body;
+
+    console.log(`[API POST /verify-2fa] Verifying 2FA code for user ID: ${userId}`);
+
+    if (!userId || !totpCode) {
+        return res.status(400).json({ error: 'User ID and 2FA code are required.' });
+    }
+
+    try {
+        // 1. Fetch the user's stored secret and details
+        const queryText = 'SELECT id, username, email, totp_secret FROM users WHERE id = $1 AND is_2fa_enabled = TRUE;';
+        const { rows } = await pool.query(queryText, [userId]);
+
+        if (rows.length === 0) {
+            // User not found or 2FA isn't enabled
+            console.error(`[API POST /verify-2fa] User ID ${userId} not found or 2FA not enabled.`);
+            return res.status(401).json({ error: 'Invalid user or 2FA not enabled.' });
+        }
+        const user = rows[0];
+
+        if (!user.totp_secret) {
+             console.error(`[API POST /verify-2fa] User ID ${userId} has 2FA enabled but no secret stored!`);
+             return res.status(500).json({ error: 'Server configuration error for 2FA.' });
+        }
+
+        // 2. Verify the submitted code against the stored secret
+        const verified = speakeasy.totp.verify({
+            secret: user.totp_secret, // Use the secret stored in the DB
+            encoding: 'base32',
+            token: totpCode,
+            window: 1 // Allow some time drift
+        });
+
+        if (verified) {
+            // 3. Code is valid, generate and return JWT token.
+            console.log(`[API POST /verify-2fa] 2FA code verified for user ID: ${userId}. Issuing token.`);
+            const payload = { userId: user.id, username: user.username };
+            const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+            res.status(200).json({
+                message: 'Login Successful!',
+                token: token,
+                user: { id: user.id, username: user.username, email: user.email }
+            });
+        } else {
+            // 4. Code is invalid.
+            console.log(`[API POST /verify-2fa] Invalid 2FA code for user ID: ${userId}`);
+            res.status(401).json({ error: 'Invalid 2FA code.' });
+        }
+
+    } catch (error) {
+        console.error(`[API POST /verify-2fa] Error verifying 2FA for user ID ${userId}:`, error.stack);
+        res.status(500).json({ error: 'Internal Server Error during 2FA verification.' });
+    }
+});
+
+// --- Verify TOTP Token and Enable 2FA ---
+// This endpoint verifies the code entered by the user against the temporary secret
+// and, if valid, saves the secret and enables 2FA in the database.
+app.post('/api/auth/2fa/verify', authenticateToken, async (req, res) => {
+    const userId = req.user.userId;
+    // The frontend sends the temporary secret received from /generate
+    // along with the token entered by the user from their authenticator app.
+    const { token, secret } = req.body;
+
+    console.log(`[API POST /2fa/verify] Verifying 2FA token for user ID: ${userId}`);
+
+    if (!token || !secret) {
+        return res.status(400).json({ error: 'Token code and secret are required.' });
+    }
+
+    try {
+        // Verify the token submitted by the user against the temporary secret
+        const verified = speakeasy.totp.verify({
+            secret: secret, // The Base32 secret generated previously
+            encoding: 'base32',
+            token: token, // The 6-digit code from the user's app
+            window: 1 // Allow codes from 1 step before/after current time window (e.g., 30 seconds)
+        });
+
+        if (verified) {
+            console.log(`[API POST /2fa/verify] 2FA token verified successfully for user ID: ${userId}`);
+            // Token is valid, save the secret to the database and enable 2FA.
+            const updateQuery = `
+                UPDATE users
+                SET is_2fa_enabled = TRUE,
+                    totp_secret = $1, -- Save the verified secret
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = $2;
+            `;
+            await pool.query(updateQuery, [secret, userId]); // Save the Base32 secret
+
+            console.log(`[API POST /2fa/verify] 2FA enabled and secret saved for user ID: ${userId}`);
+            res.json({ verified: true, message: '2FA enabled successfully!' });
+
+        } else {
+            console.log(`[API POST /2fa/verify] 2FA token verification failed for user ID: ${userId}`);
+            // Token is invalid
+            res.status(400).json({ verified: false, error: 'Invalid 2FA code. Please check your authenticator app and try again.' });
+        }
+
+    } catch (error) {
+        console.error(`[API POST /2fa/verify] Error verifying 2FA token for user ID ${userId}:`, error.stack);
+        res.status(500).json({ error: 'Internal Server Error verifying 2FA token.' });
+    }
+});
+
+
+// TODO: Add endpoint to disable 2FA ---
+// app.post('/api/auth/2fa/disable', authenticateToken, async (req, res) => { ... });
 
 // --- Start the Server ---
 app.listen(PORT, () => {

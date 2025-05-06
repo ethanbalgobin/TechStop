@@ -11,8 +11,15 @@ CREATE TABLE users (
     first_name varchar(100),
     last_name varchar(100),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- when the user account was made
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP -- when the user account was last updated
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- when the user account was last updated
+    is_2fa_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    totp_secret TEXT,
+    totp_auth_url TEXT
 );
+
+COMMENT ON COLUMN users.is_2fa_enabled IS 'Flag indicating if Time-based One-Time Password (TOTP) 2FA is enabled.';
+COMMENT ON COLUMN users.totp_secret IS 'The secret key used for TOTP generation, shared with the user authenticator app.';
+COMMENT ON COLUMN users.totp_auth_url IS 'The full otpauth:// URL containing the secret, issuer, and user info.';
 
 -- products table
     -- Purpose: Stores details about the items you are selling.
