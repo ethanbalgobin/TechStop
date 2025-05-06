@@ -109,6 +109,15 @@ CREATE TABLE cart_items (
     
 );
 
+-- Table to categorise products based on type
+CREATE TABLE categories (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL UNIQUE,
+    description TEXT,                 
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 --- INDEXES ---
 
 -- Index for faster lookup by user id

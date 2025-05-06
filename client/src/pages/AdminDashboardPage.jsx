@@ -1,20 +1,47 @@
+// client/src/pages/AdminDashboardPage.jsx
+
 import React from 'react';
+import { Link } from 'react-router-dom'; // Import Link
 
 function AdminDashboardPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold text-gray-800 mb-6">Admin Dashboard</h1>
-      <p className="text-gray-700">
+      <p className="text-gray-700 mb-6">
         Welcome to the Admin Dashboard. This area is restricted to approved administrators only.
       </p>
-      {/* Admin-specific content and links will go here later */}
-      {/* Placeholder:
-      <ul className="mt-4 list-disc list-inside">
-        <li>Manage Products</li>
-        <li>View All Orders</li>
-        <li>Manage Users</li>
-      </ul>
-      */}
+
+      {/* Links to Admin Sections */}
+      <div className="space-y-4">
+        <div>
+          {/* --- Link to Admin Products Page --- */}
+          <Link
+            to="/admin/products" // This is the path we defined in App.jsx
+            className="inline-block px-6 py-3 text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            Manage Products
+          </Link>
+        </div>
+        {/* Placeholders */}
+        {/*
+        <div>
+          <Link
+            to="/admin/categories" // Example for a future categories page
+            className="inline-block px-6 py-3 text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            Manage Categories
+          </Link>
+        </div>
+        <div>
+          <Link
+            to="/admin/orders" // Example for a future admin orders page
+            className="inline-block px-6 py-3 text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            View All Orders
+          </Link>
+        </div>
+        */}
+      </div>
     </div>
   );
 }

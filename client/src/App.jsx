@@ -17,6 +17,7 @@ import OrderSuccessPage from './pages/OrderSuccessPage';
 import OrderHistoryPage from './pages/OrderHistoryPage';
 import OrderDetailPage from './pages/OrderDetailPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
+import AdminProductsPage from './pages/AdminProductsPage';
 
 // --- Import Utility Components ---
 import NavBar from './components/NavBar';
@@ -80,7 +81,16 @@ function App() {
               </AdminProtectedRoute>
             }
           />
-          {/* Add other admin routes here later, e.g., /admin/products, /admin/users */}
+          {/* --- Admin Products Route --- */}
+          <Route
+            path="/admin/products"
+            element={
+              <AdminProtectedRoute>
+                <AdminProductsPage />
+              </AdminProtectedRoute>
+            }
+          />
+          {/* Add other admin routes here later, e.g., /admin/categories, /admin/users */}
           {/* Catch-all route for 404 Not Found */}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>

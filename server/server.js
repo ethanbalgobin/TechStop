@@ -1151,6 +1151,312 @@ app.get('/api/admin/test', authenticateToken, authenticateAdmin, (req, res) => {
     res.json({ message: 'Welcome, Admin! You have accessed a protected admin route.' });
 });
 
+// === Admin Product Management API Routes ===
+// All routes are protected by authenticateToken and authenticateAdmin
+
+// GET /api/admin/products - Fetch all products for admin view
+app.get('/api/admin/products', authenticateToken, authenticateAdmin, async (req, res) => {
+    console.log(`[API GET /api/admin/products] Admin request to fetch all products by user ID: ${req.user.userId}`);
+    try {
+        const result = await pool.query('SELECT * FROM products ORDER BY id ASC');
+        console.log(`[API GET /api/admin/products] Found ${result.rows.length} products for admin view.`);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('[API GET /api/admin/products] Error fetching products for admin:', err.stack);
+        res.status(500).json({ error: 'Internal Server Error fetching products' });
+    }
+});
+
+// POST /api/admin/products - Add a new product
+app.post('/api/admin/products', authenticateToken, authenticateAdmin, async (req, res) => {
+    // Destructure all expected product fields from request body
+    const { name, description, price, stock_quantity, image_url, category_id } = req.body;
+    console.log(`[API POST /api/admin/products] Admin request to add new product: ${name} by user ID: ${req.user.userId}`);
+
+    // Basic validation
+    if (!name || !description || price === undefined || stock_quantity === undefined) {
+        return res.status(400).json({ error: 'Missing required fields: name, description, price, stock_quantity.' });
+    }
+    const numericPrice = Number(price);
+    const intStockQuantity = parseInt(stock_quantity, 10);
+    const intCategoryId = category_id ? parseInt(category_id, 10) : null; // Handle optional category_id
+
+    if (isNaN(numericPrice) || numericPrice < 0) {
+        return res.status(400).json({ error: 'Invalid price format.' });
+    }
+    if (isNaN(intStockQuantity) || intStockQuantity < 0) {
+        return res.status(400).json({ error: 'Invalid stock quantity format.' });
+    }
+    if (category_id && (isNaN(intCategoryId) || intCategoryId <= 0) && intCategoryId !== null) { // Check if category_id is a positive int if provided
+        return res.status(400).json({ error: 'Invalid category ID format.' });
+    }
+
+    try {
+        const query = `
+            INSERT INTO products (name, description, price, stock_quantity, image_url, category_id, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            RETURNING *;
+        `;
+        // Ensure image_url is null if not provided or empty
+        const values = [name, description, numericPrice, intStockQuantity, image_url || null, intCategoryId];
+        const result = await pool.query(query, values);
+        const newProduct = result.rows[0];
+
+        console.log(`[API POST /api/admin/products] Product added successfully with ID: ${newProduct.id}`);
+        res.status(201).json(newProduct);
+    } catch (err) {
+        console.error('[API POST /api/admin/products] Error adding product:', err.stack);
+        // Handle specific errors like foreign key violation for category_id if it's invalid
+        if (err.code === '23503') { // PostgreSQL foreign key violation
+            return res.status(400).json({ error: 'Invalid category ID or other foreign key constraint.' });
+        }
+        res.status(500).json({ error: 'Internal Server Error adding product.' });
+    }
+});
+
+// PUT /api/admin/products/:productId - Update an existing product
+app.put('/api/admin/products/:productId', authenticateToken, authenticateAdmin, async (req, res) => {
+    const { productId } = req.params;
+    // Destructure fields that can be updated
+    const { name, description, price, stock_quantity, image_url, category_id } = req.body;
+    console.log(`[API PUT /api/admin/products/:productId] Admin request to update product ID: ${productId} by user ID: ${req.user.userId}`);
+
+    const intProductId = parseInt(productId, 10);
+    if (isNaN(intProductId)) {
+        return res.status(400).json({ error: 'Invalid Product ID format.' });
+    }
+
+    // Build the update query dynamically based on provided fields
+    const fieldsToUpdate = {};
+    if (name !== undefined) fieldsToUpdate.name = name;
+    if (description !== undefined) fieldsToUpdate.description = description;
+    if (price !== undefined) {
+        const numericPrice = Number(price);
+        if (isNaN(numericPrice) || numericPrice < 0) return res.status(400).json({ error: 'Invalid price.' });
+        fieldsToUpdate.price = numericPrice;
+    }
+    if (stock_quantity !== undefined) {
+        const intStock = parseInt(stock_quantity, 10);
+        if (isNaN(intStock) || intStock < 0) return res.status(400).json({ error: 'Invalid stock quantity.' });
+        fieldsToUpdate.stock_quantity = intStock;
+    }
+    if (image_url !== undefined) fieldsToUpdate.image_url = image_url === '' ? null : image_url; // Allow clearing image_url
+    if (category_id !== undefined) {
+        if (category_id === null || category_id === '' || category_id === 0) { // Treat 0 or empty as null
+             fieldsToUpdate.category_id = null;
+        } else {
+            const intCategory = parseInt(category_id, 10);
+            if (isNaN(intCategory) || intCategory <= 0) return res.status(400).json({ error: 'Invalid category ID.' });
+            fieldsToUpdate.category_id = intCategory;
+        }
+    }
+
+    if (Object.keys(fieldsToUpdate).length === 0) {
+        return res.status(400).json({ error: 'No fields provided for update.' });
+    }
+
+    fieldsToUpdate.updated_at = new Date();
+
+    // Constructing SET clauses and values array for the query
+    const setClauses = Object.keys(fieldsToUpdate).map((key, index) => `"${key}" = $${index + 1}`).join(', ');
+    const values = Object.values(fieldsToUpdate);
+    values.push(intProductId);
+    try {
+        const query = `UPDATE products SET ${setClauses} WHERE id = $${values.length} RETURNING *;`;
+        const result = await pool.query(query, values);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Product not found.' });
+        }
+        const updatedProduct = result.rows[0];
+        console.log(`[API PUT /api/admin/products/:productId] Product ID: ${updatedProduct.id} updated successfully.`);
+        res.json(updatedProduct);
+    } catch (err) {
+        console.error(`[API PUT /api/admin/products/:productId] Error updating product ID ${intProductId}:`, err.stack);
+         if (err.code === '23503') { // PostgreSQL foreign key violation 
+            return res.status(400).json({ error: 'Invalid category ID or other foreign key constraint.' });
+        }
+        res.status(500).json({ error: 'Internal Server Error updating product.' });
+    }
+});
+
+// DELETE /api/admin/products/:productId - Delete a product
+app.delete('/api/admin/products/:productId', authenticateToken, authenticateAdmin, async (req, res) => {
+    const { productId } = req.params;
+    console.log(`[API DELETE /api/admin/products/:productId] Admin request to delete product ID: ${productId} by user ID: ${req.user.userId}`);
+
+    const intProductId = parseInt(productId, 10);
+    if (isNaN(intProductId)) {
+        return res.status(400).json({ error: 'Invalid Product ID format.' });
+    }
+
+    try {
+        // First, check if the product is referenced in order_items
+        const checkOrderItemsQuery = 'SELECT COUNT(*) FROM order_items WHERE product_id = $1';
+        const orderItemsResult = await pool.query(checkOrderItemsQuery, [intProductId]);
+        if (parseInt(orderItemsResult.rows[0].count, 10) > 0) {
+            console.warn(`[API DELETE /api/admin/products/:productId] Attempt to delete product ID: ${intProductId} that is part of existing orders.`);
+            return res.status(409).json({ error: 'Cannot delete product. It is referenced in existing orders. Consider deactivating the product instead.' });
+        }
+
+        // If not in orders, proceed with deletion
+        const query = 'DELETE FROM products WHERE id = $1 RETURNING *;';
+        const result = await pool.query(query, [intProductId]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Product not found.' });
+        }
+
+        console.log(`[API DELETE /api/admin/products/:productId] Product ID: ${intProductId} deleted successfully.`);
+        res.status(200).json({ message: 'Product deleted successfully.', product: result.rows[0] });
+    } catch (err) {
+        console.error(`[API DELETE /api/admin/products/:productId] Error deleting product ID ${intProductId}:`, err.stack);
+        // Handle other potential errors, e.g., if ON DELETE RESTRICT was on cart_items
+        if (err.code === '23503') { // Foreign key violation
+            return res.status(409).json({ error: 'Cannot delete product. It is referenced elsewhere (e.g., in active carts or wishlists).' });
+        }
+        res.status(500).json({ error: 'Internal Server Error deleting product.' });
+    }
+});
+
+// GET /api/admin/categories - Fetch all categories for admin view
+app.get('/api/admin/categories', authenticateToken, authenticateAdmin, async (req, res) => {
+    console.log(`[API GET /api/admin/categories] Admin request to fetch all categories by user ID: ${req.user.userId}`);
+    try {
+        const result = await pool.query('SELECT id, name, description FROM categories ORDER BY name ASC');
+        console.log(`[API GET /api/admin/categories] Found ${result.rows.length} categories.`);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('[API GET /api/admin/categories] Error fetching categories for admin:', err.stack);
+        res.status(500).json({ error: 'Internal Server Error fetching categories' });
+    }
+});
+
+// === Admin Categories Management API Routes ===
+
+// --- GET /api/admin/categories - Fetch all categories for admin view ---
+app.get('/api/admin/categories', authenticateToken, authenticateAdmin, async (req, res) => {
+    console.log(`[API GET /api/admin/categories] Admin request to fetch all categories by user ID: ${req.user.userId}`);
+    try {
+        const result = await pool.query('SELECT id, name, description FROM categories ORDER BY name ASC');
+        console.log(`[API GET /api/admin/categories] Found ${result.rows.length} categories.`);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('[API GET /api/admin/categories] Error fetching categories for admin:', err.stack);
+        res.status(500).json({ error: 'Internal Server Error fetching categories' });
+    }
+});
+
+// --- POST /api/admin/categories - Create a new category ---
+app.post('/api/admin/categories', authenticateToken, authenticateAdmin, async (req, res) => {
+    const { name, description } = req.body;
+    console.log(`[API POST /api/admin/categories] Admin request to create category: ${name}`);
+
+    if (!name) {
+        return res.status(400).json({ error: 'Category name is required.' });
+    }
+
+    try {
+        const query = `
+            INSERT INTO categories (name, description, created_at, updated_at)
+            VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            RETURNING *;
+        `;
+        const values = [name, description || null]; // Allow description to be optional
+        const result = await pool.query(query, values);
+        const newCategory = result.rows[0];
+
+        console.log(`[API POST /api/admin/categories] Category created successfully with ID: ${newCategory.id}`);
+        res.status(201).json(newCategory);
+    } catch (err) {
+        console.error('[API POST /api/admin/categories] Error creating category:', err.stack);
+        if (err.code === '23505') { // Unique violation for name
+            return res.status(409).json({ error: 'Category name already exists.' });
+        }
+        res.status(500).json({ error: 'Internal Server Error creating category.' });
+    }
+});
+
+// --- PUT /api/admin/categories/:categoryId - Update an existing category ---
+app.put('/api/admin/categories/:categoryId', authenticateToken, authenticateAdmin, async (req, res) => {
+    const { categoryId } = req.params;
+    const { name, description } = req.body;
+    console.log(`[API PUT /api/admin/categories] Admin request to update category ID: ${categoryId}`);
+
+    const intCategoryId = parseInt(categoryId, 10);
+    if (isNaN(intCategoryId)) {
+        return res.status(400).json({ error: 'Invalid Category ID format.' });
+    }
+
+    // At least one field must be provided for update
+    if (name === undefined && description === undefined) {
+        return res.status(400).json({ error: 'At least one field (name or description) must be provided for update.' });
+    }
+
+    // Build the update query dynamically
+    const fieldsToUpdate = {};
+    if (name !== undefined) fieldsToUpdate.name = name;
+    if (description !== undefined) fieldsToUpdate.description = description === '' ? null : description; // Allow clearing description
+
+    if (Object.keys(fieldsToUpdate).length === 0) {
+         return res.status(400).json({ error: 'No valid fields provided for update.' });
+    }
+
+    fieldsToUpdate.updated_at = new Date(); // Always update the timestamp
+
+    const setClauses = Object.keys(fieldsToUpdate).map((key, index) => `"${key}" = $${index + 1}`).join(', ');
+    const values = Object.values(fieldsToUpdate);
+    values.push(intCategoryId);
+
+    try {
+        const query = `UPDATE categories SET ${setClauses} WHERE id = $${values.length} RETURNING *;`;
+        const result = await pool.query(query, values);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Category not found.' });
+        }
+        const updatedCategory = result.rows[0];
+        console.log(`[API PUT /api/admin/categories] Category ID: ${updatedCategory.id} updated successfully.`);
+        res.json(updatedCategory);
+    } catch (err) {
+        console.error(`[API PUT /api/admin/categories] Error updating category ID ${intCategoryId}:`, err.stack);
+        if (err.code === '23505') { // Unique violation for name
+            return res.status(409).json({ error: 'Category name already exists.' });
+        }
+        res.status(500).json({ error: 'Internal Server Error updating category.' });
+    }
+});
+
+// --- DELETE /api/admin/categories/:categoryId - Delete a category ---
+app.delete('/api/admin/categories/:categoryId', authenticateToken, authenticateAdmin, async (req, res) => {
+    const { categoryId } = req.params;
+    console.log(`[API DELETE /api/admin/categories] Admin request to delete category ID: ${categoryId}`);
+
+    const intCategoryId = parseInt(categoryId, 10);
+    if (isNaN(intCategoryId)) {
+        return res.status(400).json({ error: 'Invalid Category ID format.' });
+    }
+
+    try {
+        const query = 'DELETE FROM categories WHERE id = $1 RETURNING *;';
+        const result = await pool.query(query, [intCategoryId]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Category not found.' });
+        }
+
+        console.log(`[API DELETE /api/admin/categories] Category ID: ${intCategoryId} deleted successfully.`);
+        res.status(200).json({ message: 'Category deleted successfully.', category: result.rows[0] });
+    } catch (err) {
+        console.error(`[API DELETE /api/admin/categories] Error deleting category ID ${intCategoryId}:`, err.stack);
+        if (err.code === '23503') { // Foreign key violation
+            return res.status(409).json({ error: 'Cannot delete category. It is currently assigned to one or more products.' });
+        }
+        res.status(500).json({ error: 'Internal Server Error deleting category.' });
+    }
+});
+
+
 // --- Start the Server ---
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
