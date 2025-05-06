@@ -8,7 +8,6 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
 
-  // --- REMOVED inline CSS/PostCSS configuration ---
 
   // Server proxy config remains
   server: {

@@ -7,8 +7,7 @@ require('dotenv').config(); // Ensure dotenv runs first
 // Import the database pool directly from db.js
 const pool = require('./db'); 
 
-// Stripe library
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY); // Stripe library
 const app = express();
 const PORT = process.env.PORT || 5001;
 const saltRounds = 10;
@@ -17,23 +16,103 @@ const authenticateToken = require('./middleware/authenticateToken');
 
 // --- Middleware ---
 app.use(cors());
-app.use(express.json());
 
 // --- API Routes ---
+
+// === Stripe Webhook Endpoint ===
+// Using express.raw for raw body parsing
+app.post('/api/stripe-webhooks', express.raw({type: 'application/json'}), async (req, res) => {
+    console.log('[Webhook] Received event.');
+
+    const sig = req.headers['stripe-signature'];
+    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+    if (!sig || !endpointSecret) {
+        console.error('[Webhook] Error: Missing stripe-signature header or webhook secret.');
+        return res.status(400).send('Webhook Error: Configuration issue.');
+    }
+
+    let event;
+
+    try {
+        // Verify signature
+        event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+        console.log('[Webhook] Signature verified. Event type:', event.type);
+    } catch (err) {
+        console.error(`[Webhook] ❌ Error verifying webhook signature: ${err.message}`);
+        return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    // --- Handle the event ---
+    switch (event.type) {
+        case 'payment_intent.succeeded':
+            const paymentIntentSucceeded = event.data.object;
+            const paymentIntentId = paymentIntentSucceeded.id;
+            console.log(`[Webhook] PaymentIntent succeeded: ${paymentIntentId}`);
+
+            // --- Database Update Logic ---
+            try {
+                // Find the order associated with the PaymentIntent ID and
+                // update its status to 'Processing' or 'Paid'
+                const updateOrderQuery = `
+                    UPDATE orders
+                    SET status = $1, updated_at = CURRENT_TIMESTAMP
+                    WHERE payment_intent_id = $2 AND status = 'Pending' -- Only update if still pending
+                    RETURNING id, user_id, status; -- Return updated order info
+                `;
+                const newStatus = 'Paid';
+                const { rows, rowCount } = await pool.query(updateOrderQuery, [newStatus, paymentIntentId]);
+
+                if (rowCount > 0) {
+                    const updatedOrder = rows[0];
+                    console.log(`[Webhook] Order ID ${updatedOrder.id} status updated to '${updatedOrder.status}' for PaymentIntent ${paymentIntentId}`);
+                    // TODO: Trigger other fulfillment actions here (e.g., send confirmation email)
+                    // await sendOrderConfirmationEmail(updatedOrder.user_id, updatedOrder.id);
+                } else {
+                    // This might happen if the webhook arrives before the order is created,
+                    // or if the order status was already updated (e.g., by a previous webhook delivery).
+                    console.warn(`[Webhook] No pending order found or already processed for PaymentIntent ${paymentIntentId}.`);
+                }
+
+            } catch (dbError) {
+                console.error(`[Webhook] ❌ Database error handling PaymentIntent ${paymentIntentId}:`, dbError.stack);
+                // Handle DB errors. Returning 500 tells Stripe to retry.
+                return res.status(500).send('Webhook Error: Database update failed.');
+            }
+            // --- End Database Update Logic ---
+            break; // End case payment_intent.succeeded
+
+        case 'payment_intent.payment_failed':
+            const paymentIntentFailed = event.data.object;
+            console.log(`[Webhook] PaymentIntent failed: ${paymentIntentFailed.id}`, paymentIntentFailed.last_payment_error?.message);
+            // TODO: Log failure, potentially update order status to 'Failed', notify user?
+            break;
+
+        default:
+            console.log(`[Webhook] Unhandled event type ${event.type}`);
+    }
+    // --- End Event Handling ---
+
+
+    // Acknowledge receipt of the event to Stripe
+    res.status(200).json({ received: true });
+});
+
+app.use(express.json());  // moved under the stripe webhook
 
 // === Order Creation API Route ===
 
 app.post('/api/orders', authenticateToken, async (req, res) => {
     const userId = req.user.userId; // Get user ID from authenticated token
     // Destructure expected data from the request body sent by the frontend
-    const { shippingDetails, items, total } = req.body;
+    const { shippingDetails, items, total, paymentIntentId } = req.body;
 
-    console.log(`[API POST /api/orders] Attempting order creation for user ID: ${userId}`);
+    console.log(`[API POST /api/orders] Attempting order creation for user ID: ${userId}, PayemntIntend: ${paymentIntentId}`);
 
     // --- Basic Validation ---
-    if (!shippingDetails || !items || !Array.isArray(items) || items.length === 0 || total === undefined || total === null) {
+    if (!shippingDetails || !items || !Array.isArray(items) || items.length === 0 || total === undefined || total === null || !paymentIntentId) {
         console.error(`[API POST /api/orders] Invalid order data received for user ID: ${userId}`, req.body);
-        return res.status(400).json({ error: 'Invalid order data. Shipping details and at least one item are required.' });
+        return res.status(400).json({ error: 'Invalid order data. Shipping details, items, total, and paymentIntentId are required.' });
     }
     // Validate shipping details object
     const { fullName, address1, address2, city, postcode, country } = shippingDetails; // Destructure address2 here as well
@@ -113,17 +192,17 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
         // --- END MODIFIED ADDRESS HANDLING ---
 
 
-        // 2. Insert Order into 'orders' table (remains the same)
+        // 2. Insert Order into 'orders' table
         const orderQuery = `
-            INSERT INTO orders (user_id, total_amount, status, shipping_address_id, billing_address_id)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO orders (user_id, total_amount, status, shipping_address_id, billing_address_id, payment_intent_id)
+            VALUES ($1, $2, $3, $4, $5, $6)
             RETURNING id, order_date, status;
         `;
-        const orderValues = [ userId, numericTotal, 'Pending', shippingAddressId, shippingAddressId ];
+        const orderValues = [ userId, numericTotal, 'Pending', shippingAddressId, shippingAddressId, paymentIntentId ];
         const orderResult = await client.query(orderQuery, orderValues);
         const newOrder = orderResult.rows[0];
         const newOrderId = newOrder.id;
-        console.log(`[API POST /api/orders] Order created with ID: ${newOrderId} for user ID: ${userId}`);
+        console.log(`[API POST /api/orders] Order created with ID: ${newOrderId} for user ID: ${userId}. PaymentIntent: ${paymentIntentId}`);
 
         // 3. Insert Order Items into 'order_items' table (remains the same)
         const itemInsertQuery = `
@@ -141,29 +220,33 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
         }));
         console.log(`[API POST /api/orders] All ${items.length} order items inserted for Order ID: ${newOrderId}`);
 
-        // 4. Clear the user's cart (remains the same)
+        // 4. Clear the user's cart
         const clearCartQuery = 'DELETE FROM cart_items WHERE user_id = $1';
         await client.query(clearCartQuery, [userId]);
         console.log(`[API POST /api/orders] Cart cleared for user ID: ${userId}`);
 
 
-        // Commit the transaction (remains the same)
+        // Commit the transaction
         await client.query('COMMIT');
         console.log(`[API POST /api/orders] Transaction committed for Order ID: ${newOrderId}`);
 
-        // Send success response (remains the same)
+        // Send success response
         res.status(201).json({
             message: 'Order placed successfully!',
             order: { id: newOrder.id, orderDate: newOrder.order_date, status: newOrder.status, totalAmount: numericTotal }
         });
 
     } catch (error) {
-        // Rollback and error handling (remains the same)
+        // Rollback and error handling
         await client.query('ROLLBACK');
         console.error(`[API POST /api/orders] Transaction rolled back for user ID ${userId}. Error:`, error.stack);
+        // Check for unique constraint violation on payment_intent_id
+        if (error.code === '23505' && error.constraint === 'orders_payment_intent_id_key') {
+            return res.status(409).json({ error: 'Order potentially already created for this payment.' });
+       }
         res.status(500).json({ error: 'Internal Server Error placing order.' });
     } finally {
-        // Release client (remains the same)
+        // Release client
         client.release();
         console.log(`[API POST /api/orders] Database client released for user ID: ${userId}`);
     }

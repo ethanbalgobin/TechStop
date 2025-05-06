@@ -57,7 +57,8 @@ CREATE TABLE orders(
     shipping_address_id INTEGER REFERENCES addresses(id),
     billing_address_id INTEGER REFERENCES addresses(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    payment_intent_id VARCHAR(255) UNIQUE
 );
 
 -- Index on user_id for faster lookup of user's orders
