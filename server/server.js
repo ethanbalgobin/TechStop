@@ -1052,9 +1052,58 @@ app.post('/api/auth/2fa/verify', authenticateToken, async (req, res) => {
     }
 });
 
+// === Disable 2FA API Route ===
+// This route requires the user's current password to disable 2FA
+app.post('/api/auth/2fa/disable', authenticateToken, async (req, res) => {
+    const userId = req.user.userId;
+    const { password } = req.body; // Expect password from the request body
 
-// TODO: Add endpoint to disable 2FA ---
-// app.post('/api/auth/2fa/disable', authenticateToken, async (req, res) => { ... });
+    console.log(`[API POST /2fa/disable] Attempting to disable 2FA for user ID: ${userId}`);
+
+    if (!password) {
+        return res.status(400).json({ error: 'Password is required to disable 2FA.' });
+    }
+
+    try {
+        // 1. Fetch the user's current hashed password and 2FA status
+        const userQuery = 'SELECT id, password_hash, is_2fa_enabled FROM users WHERE id = $1';
+        const userResult = await pool.query(userQuery, [userId]);
+
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+        const user = userResult.rows[0];
+
+        // 2. Verify the provided password
+        const isPasswordMatch = await bcrypt.compare(password, user.password_hash);
+        if (!isPasswordMatch) {
+            console.log(`[API POST /2fa/disable] Incorrect password for user ID: ${userId}`);
+            return res.status(401).json({ error: 'Incorrect password.' });
+        }
+
+        // 3. If password is correct, disable 2FA
+        if (user.is_2fa_enabled) {
+            const updateQuery = `
+                UPDATE users
+                SET is_2fa_enabled = FALSE,
+                    totp_secret = NULL, -- Clear the secret
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = $1;
+            `;
+            await pool.query(updateQuery, [userId]);
+            console.log(`[API POST /2fa/disable] 2FA disabled successfully for user ID: ${userId}`);
+            res.json({ message: 'Two-Factor Authentication has been disabled.' });
+        } else {
+            // 2FA is already disabled
+            console.log(`[API POST /2fa/disable] 2FA already disabled for user ID: ${userId}`);
+            res.json({ message: 'Two-Factor Authentication is already disabled.' });
+        }
+
+    } catch (error) {
+        console.error(`[API POST /2fa/disable] Error disabling 2FA for user ID ${userId}:`, error.stack);
+        res.status(500).json({ error: 'Internal Server Error disabling 2FA.' });
+    }
+});
 
 // --- Start the Server ---
 app.listen(PORT, () => {
