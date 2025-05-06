@@ -18,6 +18,7 @@ import OrderHistoryPage from './pages/OrderHistoryPage';
 import OrderDetailPage from './pages/OrderDetailPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminProductsPage from './pages/AdminProductsPage';
+import AdminCategoriesPage from './pages/AdminCategoriesPage';
 
 // --- Import Utility Components ---
 import NavBar from './components/NavBar';
@@ -87,6 +88,15 @@ function App() {
             element={
               <AdminProtectedRoute>
                 <AdminProductsPage />
+              </AdminProtectedRoute>
+            }
+          />
+          {/* --- Add Admin Categories Route --- */}
+          <Route
+            path="/admin/categories"
+            element={
+              <AdminProtectedRoute>
+                <AdminCategoriesPage />
               </AdminProtectedRoute>
             }
           />

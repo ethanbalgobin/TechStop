@@ -16,22 +16,23 @@ function AdminDashboardPage() {
         <div>
           {/* --- Link to Admin Products Page --- */}
           <Link
-            to="/admin/products" // This is the path we defined in App.jsx
+            to="/admin/products"
             className="inline-block px-6 py-3 text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
           >
             Manage Products
           </Link>
         </div>
-        {/* Placeholders */}
-        {/*
+        {/* --- NEW: Link to Admin Categories Page --- */}
         <div>
           <Link
-            to="/admin/categories" // Example for a future categories page
+            to="/admin/categories"
             className="inline-block px-6 py-3 text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
           >
             Manage Categories
           </Link>
         </div>
+        {/* Placeholders */}
+        {/*
         <div>
           <Link
             to="/admin/orders" // Example for a future admin orders page

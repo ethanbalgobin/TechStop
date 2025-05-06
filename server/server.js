@@ -1323,7 +1323,7 @@ app.delete('/api/admin/products/:productId', authenticateToken, authenticateAdmi
 app.get('/api/admin/categories', authenticateToken, authenticateAdmin, async (req, res) => {
     console.log(`[API GET /api/admin/categories] Admin request to fetch all categories by user ID: ${req.user.userId}`);
     try {
-        const result = await pool.query('SELECT id, name, description FROM categories ORDER BY name ASC');
+        const result = await pool.query('SELECT id, name, description FROM categories ORDER BY id ASC');
         console.log(`[API GET /api/admin/categories] Found ${result.rows.length} categories.`);
         res.json(result.rows);
     } catch (err) {
