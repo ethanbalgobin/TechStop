@@ -7,6 +7,8 @@ require('dotenv').config(); // Ensure dotenv runs first
 // Import the database pool directly from db.js
 const pool = require('./db'); 
 
+// Stripe library
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const app = express();
 const PORT = process.env.PORT || 5001;
 const saltRounds = 10;
@@ -744,6 +746,66 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
     } catch (error) {
         console.error('Error fetching user details for /api/auth/me route:', error.stack);
         res.status(500).json({ message: 'Internal server error fetching user details' });
+    }
+});
+
+// ===  Payment Intent API Route ===
+// This route is called by the frontend before confirming the payment
+app.post('/api/create-payment-intent', authenticateToken, async (req, res) => {
+    const userId = req.user.userId;
+
+    // Fetch cart items and calculate total here to prevent tampering
+    let calculatedAmount = 0;
+    try {
+        console.log(`[API POST /create-payment-intent] Calculating total for user ID: ${userId}`);
+        const cartQuery = `
+            SELECT ci.quantity, p.price
+            FROM cart_items ci
+            JOIN products p ON ci.product_id = p.id
+            WHERE ci.user_id = $1;
+        `;
+        const { rows: cartItems } = await pool.query(cartQuery, [userId]);
+
+        if (cartItems.length === 0) {
+             return res.status(400).json({ error: 'Cannot create payment intent for empty cart.' });
+        }
+
+        calculatedAmount = cartItems.reduce((total, item) => {
+            const price = Number(item.price); // Ensure price is a number
+            return total + (isNaN(price) ? 0 : price * item.quantity);
+        }, 0);
+
+        // Convert to smallest currency unit (e.g., pence for GBP, cents for USD/EUR)
+        
+        calculatedAmount = Math.round(calculatedAmount * 100); // GBP/USD/EUR
+
+        console.log(`[API POST /create-payment-intent] Calculated amount: ${calculatedAmount} (smallest unit) for user ID: ${userId}`);
+
+        if (calculatedAmount <= 0) {
+             return res.status(400).json({ error: 'Invalid cart total for payment intent.' });
+        }
+
+        // Create a PaymentIntent with the order amount and currency
+        const paymentIntent = await stripe.paymentIntents.create({
+            amount: calculatedAmount,
+            currency: 'gbp',
+            automatic_payment_methods: {
+                enabled: true,
+            },
+            metadata: { userId: userId.toString() }
+        });
+
+        console.log(`[API POST /create-payment-intent] PaymentIntent created: ${paymentIntent.id} for user ID: ${userId}`);
+
+        // Send publishable key and PaymentIntent client_secret to client
+        res.send({
+            clientSecret: paymentIntent.client_secret,
+            publishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
+        });
+
+    } catch (error) {
+        console.error(`[API POST /create-payment-intent] Error for user ID ${userId}:`, error.stack);
+        res.status(500).json({ error: 'Internal Server Error creating payment intent.' });
     }
 });
 
