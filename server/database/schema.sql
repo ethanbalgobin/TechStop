@@ -1,17 +1,14 @@
 -- This defines all tables in the database
 
--- Users table
-    -- Purpose: Stores customer information for registration, login, and associating orders.
-
 CREATE TABLE users (
-    id SERIAL PRIMARY KEY, -- serial auto increments this value
+    id SERIAL PRIMARY KEY,
     username varchar(50) UNIQUE NOT NULL,
     email varchar(255) UNIQUE NOT NULL,
-    password_hash varchar(255) NOT NULL, -- stores the hashed password and never plain text
+    password_hash varchar(255) NOT NULL,
     first_name varchar(100),
     last_name varchar(100),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- when the user account was made
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- when the user account was last updated
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, 
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     is_2fa_enabled BOOLEAN NOT NULL DEFAULT FALSE,
     totp_secret TEXT,
     totp_auth_url TEXT,
@@ -23,7 +20,6 @@ COMMENT ON COLUMN users.totp_secret IS 'The secret key used for TOTP generation,
 COMMENT ON COLUMN users.totp_auth_url IS 'The full otpauth:// URL containing the secret, issuer, and user info.';
 
 -- products table
-    -- Purpose: Stores details about the items you are selling.
 CREATE TABLE productS(
     id SERIAL PRIMARY KEY,
     name varchar(255) NOT NULL,
@@ -32,12 +28,11 @@ CREATE TABLE productS(
     stock_quantity INTEGER NOT NULL DEFAULT 0 CHECK (quantity >= 0),
     sku varchar(100) UNIQUE,
     image_url varchar(255),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- when the product was added
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP -- when the product was last updated
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, 
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- addresses table
-    -- Purpose: Stores the shipping and bullign addresses associated with users
 
 CREATE TABLE addresses (
     id SERIAL PRIMARY KEY,
@@ -54,14 +49,13 @@ CREATE TABLE addresses (
 );
 
 -- orders table
-    -- Purpose: Stores information about purchases made by users
 
 CREATE TABLE orders(
-    id SERIAL PRIMARY KEY, -- unique order id
+    id SERIAL PRIMARY KEY, 
     user_id INTEGER NOT NULL REFERENCES users(id),
     order_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     total_amount NUMERIC(10,2) NOT NULL CHECK (total_amount >= 0),
-    status varchar(50) NOT NULL DEFAULT 'pending', -- pending, processing, shipped, delivered, cancelled
+    status varchar(50) NOT NULL DEFAULT 'pending',
     shipping_address_id INTEGER REFERENCES addresses(id),
     billing_address_id INTEGER REFERENCES addresses(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -69,15 +63,8 @@ CREATE TABLE orders(
     payment_intent_id VARCHAR(255) UNIQUE
 );
 
--- Index on user_id for faster lookup of user's orders
-CREATE INDEX idx_orders_user_id ON orders(user_id);
--- Index on status for filtering orders
-CREATE INDEX idx_orders_status ON orders(status);
 
-
--- orders_items table
-    -- Purpose: A junction table to link the orders and prodcuts tablesm representing the items in each order.
-    -- This resolves the many-to-many relationship between the two tables
+-- orders_items table (Junction for products and orders tables)
 
 CREATE TABLE order_items (
     id SERIAL PRIMARY KEY,
@@ -87,29 +74,21 @@ CREATE TABLE order_items (
     price_per_unit NUMERIC(10,2) NOT NULL CHECK (price_per_unit >= 0),
 );
 
--- Index on order_id for faster lookup of items in an order
-CREATE INDEX idx_order_items_order_id ON order_items(order_id);
--- Index on product_id if you need to find orders containing a specific product
-CREATE INDEX idx_order_items_product_id ON order_items(product_id);
+-- cart_items table
 
--- cart_items
-    -- Purpose: Creates a backend shopping cart for the users so that it is saved to their profile
 CREATE TABLE cart_items (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- Foreign key linking to the users table
-    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE, -- Foreign key linking to the products table
-    quantity INTEGER NOT NULL CHECK (quantity > 0), -- Quantity of the product in the cart for the user
-    -- Timestamps --
-        -- This is useful to run reports to check how often carts are abandoned etc. and to send reminder emails ---
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE, 
+    quantity INTEGER NOT NULL CHECK (quantity > 0),
     added_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 
     -- Constraints
-    UNIQUE (user_id, product_id) -- User cannot have the same product listed twice, each row represents one product type per user cart
-    
+    UNIQUE (user_id, product_id)
 );
 
--- Table to categorise products based on type
+-- categories table
 CREATE TABLE categories (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL UNIQUE,
@@ -122,6 +101,19 @@ CREATE TABLE categories (
 
 -- Index for faster lookup by user id
 CREATE INDEX idx_cart_items_user_id ON cart_items(user_id);
+
+-- Index on order_id for faster lookup of items in an order
+CREATE INDEX idx_order_items_order_id ON order_items(order_id);
+
+-- Index on product_id if you need to find orders containing a specific product
+CREATE INDEX idx_order_items_product_id ON order_items(product_id);
+
+-- Index on user_id for faster lookup of user's orders
+CREATE INDEX idx_orders_user_id ON orders(user_id);
+
+-- Index on status for filtering orders
+CREATE INDEX idx_orders_status ON orders(status);
+
 
 --- FUNCTIONS ---
 
