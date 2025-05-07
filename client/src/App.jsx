@@ -1,9 +1,7 @@
-
 import React from 'react';
-// Import routing components
 import { Routes, Route } from 'react-router-dom';
 
-// --- Import Page Components ---
+// Page Components
 import HomePage from './pages/HomePage';
 import NotFoundPage from './pages/NotFoundPage';
 import ProductsPage from './pages/ProductsPage';
@@ -22,15 +20,12 @@ import AdminCategoriesPage from './pages/AdminCategoriesPage';
 import AdminOrdersPage from './pages/AdminOrdersPage';
 import AdminOrderDetailPage from './pages/AdminOrderDetailPage';
 
-// --- Import Utility Components ---
+// Utility Components
 import NavBar from './components/NavBar';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminProtectedRoute from './components/adminProtectedRoute';
 
 function App() {
-
-  // --- Render Logic: Define Routes ---
-  // NavBar, LoginPage, ProtectedRoute now use useAuth() hook internally
   return (
     <div>
       <NavBar />
@@ -64,7 +59,6 @@ function App() {
                <ProtectedRoute> <OrderSuccessPage /> </ProtectedRoute>
             }
            />
-          {/* Add other protected routes (e.g., /orders) here later */}
           <Route
             path="/orders"
             element={
@@ -75,16 +69,16 @@ function App() {
             path="orders/:orderId"
             element={ <ProtectedRoute> <OrderDetailPage /> </ProtectedRoute>}
           />
+
           {/* --- Protected Admin Routes --- */}
           <Route
-            path="/admin/dashboard" // Example admin route
+            path="/admin/dashboard"
             element={
               <AdminProtectedRoute>
                 <AdminDashboardPage />
               </AdminProtectedRoute>
             }
           />
-          {/* --- Admin Products Route --- */}
           <Route
             path="/admin/products"
             element={
@@ -93,7 +87,6 @@ function App() {
               </AdminProtectedRoute>
             }
           />
-          {/* --- Add Admin Categories Route --- */}
           <Route
             path="/admin/categories"
             element={
@@ -118,8 +111,6 @@ function App() {
               </AdminProtectedRoute>
             }
           />
-          {/* Add other admin routes here later, e.g. /admin/users */}
-          {/* Catch-all route for 404 Not Found */}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </div>
