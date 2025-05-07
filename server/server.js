@@ -1489,6 +1489,90 @@ app.put('/api/admin/orders/:orderId/status', authenticateToken, authenticateAdmi
     }
 });
 
+// === Admin User Management API Routes ===
+
+//Fetch all users for admin view
+app.get('/api/admin/users', authenticateToken, authenticateAdmin, async (req, res) => {
+    const adminUserId = req.user.userId; 
+    console.log(`[API GET /api/admin/users] Admin User ID: ${adminUserId} fetching all users.`);
+
+    try {
+        const query = `
+            SELECT
+                id,
+                username,
+                email,
+                first_name,
+                last_name,
+                is_admin,
+                is_2fa_enabled,
+                created_at,
+                updated_at
+            FROM users
+            ORDER BY id ASC; -- Or order by username, created_at, etc.
+        `;
+        const { rows } = await pool.query(query);
+
+        console.log(`[API GET /api/admin/users] Found ${rows.length} total users.`);
+        res.status(200).json(rows);
+
+    } catch (error) {
+        console.error('[API GET /api/admin/users] Error fetching all users:', error.stack);
+        res.status(500).json({ error: 'Internal Server Error fetching users.' });
+    }
+});
+
+// === Admin - Update User Admin Status API Route ===
+app.put('/api/admin/users/:targetUserId/role', authenticateToken, authenticateAdmin, async (req, res) => {
+    const { targetUserId } = req.params;
+    const { isAdmin } = req.body;
+    const adminPerformingActionId = req.user.userId;
+
+    const intTargetUserId = parseInt(targetUserId, 10);
+    if (isNaN(intTargetUserId)) {
+        return res.status(400).json({ error: 'Invalid Target User ID format.' });
+    }
+
+    if (typeof isAdmin !== 'boolean') {
+        return res.status(400).json({ error: 'isAdmin status (true or false) is required.' });
+    }
+
+    if (intTargetUserId === adminPerformingActionId) {
+        return res.status(403).json({ error: 'Administrators cannot change their own role via this page.' });
+    }
+
+    console.log(`[API PUT /api/admin/users/:targetUserId/role] Admin User ID: ${adminPerformingActionId} attempting to set is_admin=${isAdmin} for User ID: ${intTargetUserId}`);
+
+    try {
+        const userCheckQuery = 'SELECT id FROM users WHERE id = $1';
+        const userCheckResult = await pool.query(userCheckQuery, [intTargetUserId]);
+        if (userCheckResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Target user not found.' });
+        }
+
+        const updateQuery = `
+            UPDATE users
+            SET is_admin = $1,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $2
+            RETURNING id, username, email, first_name, last_name, is_admin, is_2fa_enabled, created_at, updated_at;
+        `;
+        const { rows, rowCount } = await pool.query(updateQuery, [isAdmin, intTargetUserId]);
+
+        if (rowCount === 0) {
+            return res.status(404).json({ error: 'User not found during update.' });
+        }
+
+        const updatedUser = rows[0];
+        console.log(`[API PUT /api/admin/users/:targetUserId/role] User ID: ${intTargetUserId} admin status updated to ${updatedUser.is_admin} by Admin ID: ${adminPerformingActionId}`);
+        res.status(200).json(updatedUser);
+
+    } catch (error) {
+        console.error(`[API PUT /api/admin/users/:targetUserId/role] Error updating role for User ID ${intTargetUserId}:`, error.stack);
+        res.status(500).json({ error: 'Internal Server Error updating user role.' });
+    }
+});
+
 // starting server
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
