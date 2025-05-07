@@ -1,26 +1,22 @@
-const express = require('express'); // express.js
-const cors = require('cors'); // For communication between the frontend and backend
-const bcrypt = require('bcrypt'); // For password hashing
-const jwt = require('jsonwebtoken'); // For generating JWT tokens
-require('dotenv').config(); // Ensure dotenv runs first
+const express = require('express');
+const cors = require('cors');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+require('dotenv').config();
 const speakeasy = require('speakeasy');
 const qrcode = require('qrcode');
-
-// Import the database pool directly from db.js
 const pool = require('./db'); 
-
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY); // Stripe library
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY); 
 const app = express();
 const PORT = process.env.PORT || 5001;
 const saltRounds = 10;
-
 const authenticateToken = require('./middleware/authenticateToken');
 
-// --- Middleware ---
+//Middleware
+
 app.use(cors());
 
 // === Admin Authentication Middleware ===
-// This middleware checks if the authenticated user is an admin
 const authenticateAdmin = async (req, res, next) => {
     if (!req.user || !req.user.userId) {
         console.warn('[Admin Middleware] No user found on request. Ensure authenticateToken runs first.');
@@ -31,23 +27,19 @@ const authenticateAdmin = async (req, res, next) => {
     console.log(`[Admin Middleware] Checking admin status for user ID: ${userId}`);
 
     try {
-        // Fetching the user's is_admin status from the database
         const userQuery = 'SELECT is_admin FROM users WHERE id = $1';
         const { rows } = await pool.query(userQuery, [userId]);
 
         if (rows.length === 0) {
-            // User not found in DB, though token was valid (edge case)
             console.warn(`[Admin Middleware] User ID ${userId} not found in database despite valid token.`);
             return res.status(403).json({ error: 'Forbidden: User not found.' });
         }
 
         const user = rows[0];
         if (user.is_admin === true) {
-            // User is an admin, proceed
             console.log(`[Admin Middleware] User ID ${userId} is an admin. Access granted.`);
             next();
         } else {
-            // User is not an admin
             console.log(`[Admin Middleware] User ID ${userId} is NOT an admin. Access denied.`);
             return res.status(403).json({ error: 'Forbidden: Administrator access required.' });
         }
@@ -60,7 +52,6 @@ const authenticateAdmin = async (req, res, next) => {
 // --- API Routes ---
 
 // === Stripe Webhook Endpoint ===
-// Using express.raw for raw body parsing
 app.post('/api/stripe-webhooks', express.raw({type: 'application/json'}), async (req, res) => {
     console.log('[Webhook] Received event.');
 
@@ -82,18 +73,12 @@ app.post('/api/stripe-webhooks', express.raw({type: 'application/json'}), async 
         console.error(`[Webhook] ❌ Error verifying webhook signature: ${err.message}`);
         return res.status(400).send(`Webhook Error: ${err.message}`);
     }
-
-    // --- Handle the event ---
     switch (event.type) {
         case 'payment_intent.succeeded':
             const paymentIntentSucceeded = event.data.object;
             const paymentIntentId = paymentIntentSucceeded.id;
             console.log(`[Webhook] PaymentIntent succeeded: ${paymentIntentId}`);
-
-            // --- Database Update Logic ---
             try {
-                // Find the order associated with the PaymentIntent ID and
-                // update its status to 'Processing' or 'Paid'
                 const updateOrderQuery = `
                     UPDATE orders
                     SET status = $1, updated_at = CURRENT_TIMESTAMP
@@ -107,59 +92,47 @@ app.post('/api/stripe-webhooks', express.raw({type: 'application/json'}), async 
                     const updatedOrder = rows[0];
                     console.log(`[Webhook] Order ID ${updatedOrder.id} status updated to '${updatedOrder.status}' for PaymentIntent ${paymentIntentId}`);
                     // TODO: Trigger other fulfillment actions here (e.g., send confirmation email)
-                    // await sendOrderConfirmationEmail(updatedOrder.user_id, updatedOrder.id);
                 } else {
-                    // This might happen if the webhook arrives before the order is created,
-                    // or if the order status was already updated (e.g., by a previous webhook delivery).
                     console.warn(`[Webhook] No pending order found or already processed for PaymentIntent ${paymentIntentId}.`);
                 }
 
             } catch (dbError) {
                 console.error(`[Webhook] ❌ Database error handling PaymentIntent ${paymentIntentId}:`, dbError.stack);
-                // Handle DB errors. Returning 500 tells Stripe to retry.
                 return res.status(500).send('Webhook Error: Database update failed.');
             }
-            // --- End Database Update Logic ---
-            break; // End case payment_intent.succeeded
+            break;
 
         case 'payment_intent.payment_failed':
             const paymentIntentFailed = event.data.object;
             console.log(`[Webhook] PaymentIntent failed: ${paymentIntentFailed.id}`, paymentIntentFailed.last_payment_error?.message);
-            // TODO: Log failure, potentially update order status to 'Failed', notify user?
             break;
 
         default:
             console.log(`[Webhook] Unhandled event type ${event.type}`);
     }
-    // --- End Event Handling ---
-
-
-    // Acknowledge receipt of the event to Stripe
     res.status(200).json({ received: true });
 });
 
-app.use(express.json());  // moved under the stripe webhook
+app.use(express.json()); 
 
 // === Order Creation API Route ===
 
 app.post('/api/orders', authenticateToken, async (req, res) => {
-    const userId = req.user.userId; // Get user ID from authenticated token
-    // Destructure expected data from the request body sent by the frontend
+    const userId = req.user.userId; 
     const { shippingDetails, items, total, paymentIntentId } = req.body;
 
     console.log(`[API POST /api/orders] Attempting order creation for user ID: ${userId}, PayemntIntend: ${paymentIntentId}`);
 
-    // --- Basic Validation ---
+    // Basic Validation
     if (!shippingDetails || !items || !Array.isArray(items) || items.length === 0 || total === undefined || total === null || !paymentIntentId) {
         console.error(`[API POST /api/orders] Invalid order data received for user ID: ${userId}`, req.body);
         return res.status(400).json({ error: 'Invalid order data. Shipping details, items, total, and paymentIntentId are required.' });
     }
     // Validate shipping details object
-    const { fullName, address1, address2, city, postcode, country } = shippingDetails; // Destructure address2 here as well
+    const { fullName, address1, address2, city, postcode, country } = shippingDetails;
     if (!fullName || !address1 || !city || !postcode || !country) {
          return res.status(400).json({ error: 'Missing required shipping fields (Full Name, Address Line 1, City, Postcode, Country).' });
     }
-    // Validate total amount
      const numericTotal = Number(total);
      if (isNaN(numericTotal) || numericTotal < 0) {
          return res.status(400).json({ error: 'Invalid total amount.' });
@@ -168,20 +141,13 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
 
 
     // --- Database Transaction ---
-    // Use a client from the pool for transaction control
     const client = await pool.connect();
     console.log(`[API POST /api/orders] Database client acquired for user ID: ${userId}`);
 
     try {
-        // Start the transaction
         await client.query('BEGIN');
         console.log(`[API POST /api/orders] Transaction started for user ID: ${userId}`);
-
-        // --- ADDRESS HANDLING ---
         let shippingAddressId;
-
-        // 1a. Check if an identical shipping address already exists for this user
-        // Note: Removed state_province_region check for now as it's not collected
         const findAddressQuery = `
             SELECT id FROM addresses
             WHERE user_id = $1           -- Param $1
@@ -204,11 +170,9 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
         const existingAddressResult = await client.query(findAddressQuery, findAddressValues);
 
         if (existingAddressResult.rows.length > 0) {
-            // 1b. Use existing address ID
             shippingAddressId = existingAddressResult.rows[0].id;
             console.log(`[API POST /api/orders] Found existing shipping address with ID: ${shippingAddressId} for user ID: ${userId}`);
         } else {
-            // 1c. Insert New Shipping Address into 'addresses' table
             console.log(`[API POST /api/orders] No identical shipping address found. Inserting new address for user ID: ${userId}`);
             const insertAddressQuery = `
                 INSERT INTO addresses (user_id, address_line1, address_line2, city, state_province_region, postal_code, country, address_type)
@@ -216,14 +180,14 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
                 RETURNING id;
             `;
             const insertAddressValues = [
-                userId,                     // $1
-                shippingDetails.address1,   // $2
-                shippingDetails.address2 || null, // $3
-                shippingDetails.city,       // $4
-                null,                       // $5 - Placeholder for state_province_region
-                shippingDetails.postcode,   // $6
-                shippingDetails.country,    // $7
-                'shipping'                  // $8
+                userId,
+                shippingDetails.address1,
+                shippingDetails.address2 || null,
+                shippingDetails.city,
+                null,
+                shippingDetails.postcode,
+                shippingDetails.country,
+                'shipping'
             ];
             const newAddressResult = await client.query(insertAddressQuery, insertAddressValues);
             shippingAddressId = newAddressResult.rows[0].id;
@@ -244,7 +208,6 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
         const newOrderId = newOrder.id;
         console.log(`[API POST /api/orders] Order created with ID: ${newOrderId} for user ID: ${userId}. PaymentIntent: ${paymentIntentId}`);
 
-        // 3. Insert Order Items into 'order_items' table (remains the same)
         const itemInsertQuery = `
             INSERT INTO order_items (order_id, product_id, quantity, price_per_unit)
             VALUES ($1, $2, $3, $4);
@@ -265,12 +228,9 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
         await client.query(clearCartQuery, [userId]);
         console.log(`[API POST /api/orders] Cart cleared for user ID: ${userId}`);
 
-
-        // Commit the transaction
         await client.query('COMMIT');
         console.log(`[API POST /api/orders] Transaction committed for Order ID: ${newOrderId}`);
 
-        // Send success response
         res.status(201).json({
             message: 'Order placed successfully!',
             order: { id: newOrder.id, orderDate: newOrder.order_date, status: newOrder.status, totalAmount: numericTotal }
@@ -293,15 +253,12 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
 });
 
 // === Order History API Route ===
-// This route should be protected
 
 app.get('/api/orders', authenticateToken, async (req, res) => {
-    const userId = req.user.userId; // Get user ID from authenticated token
+    const userId = req.user.userId; 
     console.log(`[API GET /api/orders] Fetching order history for user ID: ${userId}`);
 
     try {
-        // Query to get the main order details for the logged-in user
-        // Ordering by order_date descending to show newest orders first
         const query = `
             SELECT
                 id,
@@ -326,11 +283,10 @@ app.get('/api/orders', authenticateToken, async (req, res) => {
 });
 
 app.get('/api/cart', authenticateToken, async (req, res) => {
-    const userId = req.user.userId; // getting userId from token payload
+    const userId = req.user.userId;
     console.log(`[API GET /api/cart] Fetching cart for user ID ${userId}`);
 
     try {
-        // Query to join cart_items with products to get product details
         const query = `
             SELECT
                 ci.product_id,
@@ -347,7 +303,6 @@ app.get('/api/cart', authenticateToken, async (req, res) => {
         `;
         const { rows } = await pool.query(query, [userId]);
 
-        // Format query response to match frontend expectations
         const cartItems = rows.map(item => ({
             product: {
                 id: item.product_id,
@@ -370,10 +325,9 @@ app.get('/api/cart', authenticateToken, async (req, res) => {
 // === Fetch Single Order Details API Route ===
 
 app.get('/api/orders/:orderId', authenticateToken, async (req, res) => {
-    const userId = req.user.userId; // Get user ID from authenticated token
-    const { orderId } = req.params; // Get order ID from URL parameter
+    const userId = req.user.userId;
+    const { orderId } = req.params; 
 
-    // Validate orderId is a number
     const intOrderId = parseInt(orderId, 10);
     if (isNaN(intOrderId)) {
         return res.status(400).json({ error: 'Invalid Order ID format.' });
@@ -382,8 +336,6 @@ app.get('/api/orders/:orderId', authenticateToken, async (req, res) => {
     console.log(`[API GET /api/orders/:orderId] Fetching details for Order ID: ${intOrderId}, User ID: ${userId}`);
 
     try {
-        // --- Fetch main order details ---
-        // Ensure the order belongs to the requesting user
         const orderQuery = `
             SELECT
                 o.id,
@@ -404,9 +356,6 @@ app.get('/api/orders/:orderId', authenticateToken, async (req, res) => {
             return res.status(404).json({ error: 'Order not found.' });
         }
         const orderDetails = orderResult.rows[0];
-
-        // --- Fetch associated order items ---
-        // Join with products table to get product details
         const itemsQuery = `
             SELECT
                 oi.product_id,
@@ -424,14 +373,12 @@ app.get('/api/orders/:orderId', authenticateToken, async (req, res) => {
         const orderItems = itemsResult.rows.map(item => ({
             productId: item.product_id,
             quantity: item.quantity,
-            pricePerUnit: item.price_per_unit, // Use the price stored with the order item
+            pricePerUnit: item.price_per_unit, 
             name: item.product_name,
             imageUrl: item.product_image_url
         }));
         console.log(`[API GET /api/orders/:orderId] Found ${orderItems.length} items for Order ID: ${intOrderId}`);
 
-
-        // --- Fetch shipping address details ---
         let shippingAddress = null;
         if (orderDetails.shipping_address_id) {
             const addressQuery = `
@@ -451,17 +398,15 @@ app.get('/api/orders/:orderId', authenticateToken, async (req, res) => {
                 console.log(`[API GET /api/orders/:orderId] Found shipping address for Order ID: ${intOrderId}`);
             } else {
                  console.warn(`[API GET /api/orders/:orderId] Shipping address ID ${orderDetails.shipping_address_id} not found or doesn't belong to user ID ${userId} for Order ID: ${intOrderId}`);
-                 // Decide how to handle this - return null or error? Returning null for now.
             }
         } else {
              console.log(`[API GET /api/orders/:orderId] No shipping address ID associated with Order ID: ${intOrderId}`);
         }
 
-        // --- Combine results and send response ---
         const fullOrderDetails = {
-            ...orderDetails, // Spread main order details (id, date, total, status, address IDs)
-            items: orderItems, // Add the array of items
-            shippingAddress: shippingAddress // Add the fetched shipping address object (or null)
+            ...orderDetails,
+            items: orderItems,
+            shippingAddress: shippingAddress
         };
 
         res.status(200).json(fullOrderDetails);
@@ -472,10 +417,10 @@ app.get('/api/orders/:orderId', authenticateToken, async (req, res) => {
     }
 });
 
-// POST /api/cart/items - Add an item to the cart (or update quantity if exists)
+
 app.post('/api/cart/items', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
-    const { productId, quantity } = req.body; // Get product ID and quantity from request body
+    const { productId, quantity } = req.body;
 
     // Basic validation
     if (!productId || quantity === undefined || quantity === null) {
@@ -489,8 +434,6 @@ app.post('/api/cart/items', authenticateToken, async (req, res) => {
     console.log(`[API POST /api/cart/items] User ID: ${userId} adding/updating Product ID: ${productId} with Quantity: ${intQuantity}`);
 
     try {
-        // Using INSERT ... ON CONFLICT to handle adding or updating quantity
-        // This leverages the UNIQUE constraint on (user_id, product_id)
         const query = `
             INSERT INTO cart_items (user_id, product_id, quantity)
             VALUES ($1, $2, $3)
@@ -500,13 +443,11 @@ app.post('/api/cart/items', authenticateToken, async (req, res) => {
                 updated_at = CURRENT_TIMESTAMP      -- Update timestamp
             RETURNING *; -- Return the added/updated row
         `;
-        // Note: Passing intQuantity ($3) twice - once for insert, once for update increment
         const { rows } = await pool.query(query, [userId, productId, intQuantity]);
         const addedOrUpdatedItem = rows[0];
 
         console.log(`[API POST /api/cart/items] Item added/updated for User ID: ${userId}, Product ID: ${productId}`);
 
-        // Fetch the updated cart to return it (consistent with GET /api/cart format)
         const getCartQuery = `
             SELECT ci.product_id, ci.quantity, p.name, p.price, p.image_url
             FROM cart_items ci JOIN products p ON ci.product_id = p.id
@@ -522,7 +463,6 @@ app.post('/api/cart/items', authenticateToken, async (req, res) => {
 
     } catch (error) {
         console.error(`[API POST /api/cart/items] Error for User ID ${userId}, Product ID ${productId}:`, error.stack);
-        // Handle potential foreign key constraint errors if productId doesn't exist
         if (error.code === '23503') { // Foreign key violation
              return res.status(404).json({ error: 'Product not found.' });
         }
@@ -530,11 +470,11 @@ app.post('/api/cart/items', authenticateToken, async (req, res) => {
     }
 });
 
-// PUT /api/cart/items/:productId - Update quantity of a specific item
+// Update quantity of a specific item
 app.put('/api/cart/items/:productId', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
-    const { productId } = req.params; // Get product ID from URL parameter
-    const { quantity } = req.body; // Get new quantity from request body
+    const { productId } = req.params; 
+    const { quantity } = req.body;
 
     // Basic validation
     if (quantity === undefined || quantity === null) {
@@ -553,8 +493,12 @@ app.put('/api/cart/items/:productId', authenticateToken, async (req, res) => {
              if (rowCount === 0) {
                  return res.status(404).json({ error: 'Cart item not found to remove.' });
              }
-             // Fetch and return updated cart after deletion
-             const getCartQuery = `SELECT ci.product_id, ci.quantity, p.name, p.price, p.image_url FROM cart_items ci JOIN products p ON ci.product_id = p.id WHERE ci.user_id = $1 ORDER BY ci.added_at ASC;`;
+             const getCartQuery = `
+             SELECT ci.product_id, ci.quantity, p.name, p.price, p.image_url 
+             FROM cart_items ci 
+             JOIN products p ON ci.product_id = p.id 
+             WHERE ci.user_id = $1 
+             ORDER BY ci.added_at ASC;`;
              const cartResult = await pool.query(getCartQuery, [userId]);
              const cartItems = cartResult.rows.map(item => ({ product: { id: item.product_id, name: item.name, price: item.price, image_url: item.image_url }, quantity: item.quantity }));
              return res.status(200).json(cartItems);
@@ -565,10 +509,7 @@ app.put('/api/cart/items/:productId', authenticateToken, async (req, res) => {
         }
     }
 
-    console.log(`[API PUT /api/cart/items] User ID: ${userId} updating Product ID: ${intProductId} to Quantity: ${intQuantity}`);
-
     try {
-        // Update the quantity for the specific item and user
         const query = `
             UPDATE cart_items
             SET quantity = $1, updated_at = CURRENT_TIMESTAMP
@@ -578,15 +519,18 @@ app.put('/api/cart/items/:productId', authenticateToken, async (req, res) => {
         const { rows, rowCount } = await pool.query(query, [intQuantity, userId, intProductId]);
 
         if (rowCount === 0) {
-            // The item wasn't in the cart for this user
             console.log(`[API PUT /api/cart/items] Cart item not found for User ID: ${userId}, Product ID: ${intProductId}`);
             return res.status(404).json({ error: 'Cart item not found.' });
         }
 
         console.log(`[API PUT /api/cart/items] Quantity updated for User ID: ${userId}, Product ID: ${intProductId}`);
 
-        // Fetch and return updated cart
-        const getCartQuery = `SELECT ci.product_id, ci.quantity, p.name, p.price, p.image_url FROM cart_items ci JOIN products p ON ci.product_id = p.id WHERE ci.user_id = $1 ORDER BY ci.added_at ASC;`;
+        const getCartQuery = `
+        SELECT ci.product_id, ci.quantity, p.name, p.price, p.image_url 
+        FROM cart_items ci 
+        JOIN products p ON ci.product_id = p.id 
+        WHERE ci.user_id = $1 
+        ORDER BY ci.added_at ASC;`;
         const cartResult = await pool.query(getCartQuery, [userId]);
         const cartItems = cartResult.rows.map(item => ({ product: { id: item.product_id, name: item.name, price: item.price, image_url: item.image_url }, quantity: item.quantity }));
         res.status(200).json(cartItems);
@@ -597,7 +541,7 @@ app.put('/api/cart/items/:productId', authenticateToken, async (req, res) => {
     }
 });
 
-// DELETE /api/cart/items/:productId - Remove a specific item from the cart
+// Remove a specific item from the cart
 app.delete('/api/cart/items/:productId', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
     const { productId } = req.params; // Get product ID from URL parameter
@@ -610,19 +554,15 @@ app.delete('/api/cart/items/:productId', authenticateToken, async (req, res) => 
     console.log(`[API DELETE /api/cart/items] User ID: ${userId} removing Product ID: ${intProductId}`);
 
     try {
-        // Delete the specific item for the user
         const query = 'DELETE FROM cart_items WHERE user_id = $1 AND product_id = $2 RETURNING *';
         const { rowCount } = await pool.query(query, [userId, intProductId]);
 
         if (rowCount === 0) {
-            // Item wasn't in the cart
             console.log(`[API DELETE /api/cart/items] Cart item not found for User ID: ${userId}, Product ID: ${intProductId}`);
             return res.status(404).json({ error: 'Cart item not found.' });
         }
 
         console.log(`[API DELETE /api/cart/items] Item removed for User ID: ${userId}, Product ID: ${intProductId}`);
-
-        // Fetch and return updated cart
         const getCartQuery = `SELECT ci.product_id, ci.quantity, p.name, p.price, p.image_url FROM cart_items ci JOIN products p ON ci.product_id = p.id WHERE ci.user_id = $1 ORDER BY ci.added_at ASC;`;
         const cartResult = await pool.query(getCartQuery, [userId]);
         const cartItems = cartResult.rows.map(item => ({ product: { id: item.product_id, name: item.name, price: item.price, image_url: item.image_url }, quantity: item.quantity }));
@@ -640,12 +580,11 @@ app.delete('/api/cart', authenticateToken, async (req, res) => {
     console.log(`[API DELETE /api/cart] Clearing cart for user ID: ${userId}`);
 
     try {
-        // Delete all items for the user
         const query = 'DELETE FROM cart_items WHERE user_id = $1 RETURNING *';
         const { rowCount } = await pool.query(query, [userId]);
 
         console.log(`[API DELETE /api/cart] Cleared ${rowCount} items for user ID: ${userId}`);
-        res.status(200).json([]); // Return empty array representing the cleared cart
+        res.status(200).json([]);
 
     } catch (error) {
         console.error(`[API DELETE /api/cart] Error clearing cart for user ID ${userId}:`, error.stack);
@@ -657,20 +596,16 @@ app.delete('/api/cart', authenticateToken, async (req, res) => {
 app.get('/api/products', async (req, res) => {
   console.log('Received request for /api/products');
   try {
-    // Check if pool and pool.query exist before using them
     if (!pool || typeof pool.query !== 'function') {
        console.error('--- FATAL: Database pool or pool.query is not available! ---', pool);
        return res.status(500).json({ error: 'Database connection not initialized correctly.' });
     }
-
-    // Use the imported pool directly to query the database
     const result = await pool.query('SELECT id, name, price, image_url FROM products ORDER BY name ASC');
 
     console.log(`Found ${result.rows.length} products`);
     res.json(result.rows);
 
   } catch (err) {
-    // Log the detailed error stack from the catch block
     console.error('Error during /api/products query execution:', err.stack);
     res.status(500).json({ error: 'Internal Server Error' });
   }
@@ -678,17 +613,14 @@ app.get('/api/products', async (req, res) => {
 
 // API endpoint to get a single product by ID
 app.get('/api/products/:id', async (req, res) => {
-    //Extract the product id from the req params
-    const productID = parseInt(req.params.id, 10) // Parse as integer of base 1o
+    const productID = parseInt(req.params.id, 10);
     console.log(`Received request for /api/products/${productID}`);
 
-    // validation check to check if ID is a valid number
     if (isNaN(productID)) {
         return res.status(400).json({error: 'Invalid product ID format'});
     }
 
     try {
-        // checking if pool and pool.query exist before using them
         if (!pool || typeof pool.query !== 'function') {
             console.error('--- FATAL: Database pool or pool.query is not available! ---', pool);
             return res.status(500).json({error: 'Database connection not initialized correctly.'});
@@ -697,22 +629,17 @@ app.get('/api/products/:id', async (req, res) => {
         // SQL parameterized query to select product by ID
         const queryText = 'SELECT * FROM products WHERE id = $1';
         const values = [productID];
-
-        //Executing the query
         const result = await pool.query(queryText, values);
 
-        // check if a product was found 
         if(result.rows.length === 0) {
             // no product found, send 404
             console.log(`Product with ID ${productID} not found`);
             return res.status(404).json({error: 'Product not found.'});
         }
 
-        // Product found, send details as JSON
         console.log(`Found product with ID ${productID}: ${result.rows[0].name}`);
         res.json(result.rows[0]);
     } catch (err) {
-        // log db errors
         console.error(`Error during /api/products/${productID} query execution:`, err.stack);
         res.status(500).json({error: 'Internal Server Error'});
     }
@@ -722,11 +649,9 @@ app.get('/api/products/:id', async (req, res) => {
 
 // --- Registration ---
 app.post('/api/auth/register', async (req, res) => {
-    // Extract user details from request body
     const {username, email, password, first_name, last_name} = req.body;
     console.log('Registration attempt for:', email);
 
-    // Basic validation
     if (!username || !email || !password) {
         return res.status(400).json({error: 'Username, email and password are required.'});
     }
@@ -759,19 +684,17 @@ app.post('/api/auth/register', async (req, res) => {
         });
 
     } catch(err) {
-        // Duplicate email/username
-        if(err.code === '23505') { // postgres unique violation code
+        if(err.code === '23505') {
             console.error('Registration Error: Username or email already exists. Please log in.', err.detail);
             return res.status(409).json({error: 'Username or email already exists.'}); // 409 Conflict
         }
-        // Database or hashing errirs
+        // Database or hashing errors
         console.error('Error during registration:', err.stack);
         res.status(500).json({error: 'Internal Server Error during registration'});
     }
 });
 
 // --- Login ---
-// === UPDATED: Login Route (Checks for 2FA) ===
 app.post('/api/auth/login', async (req, res) => {
     const { email, password } = req.body;
     console.log('[API POST /login] Login attempt for:', email);
@@ -781,7 +704,6 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     try {
-        // 1. Find the user by email
         const queryText = 'SELECT id, username, email, password_hash, is_2fa_enabled FROM users WHERE email = $1';
         const values = [email];
         const result = await pool.query(queryText, values);
@@ -791,19 +713,12 @@ app.post('/api/auth/login', async (req, res) => {
             return res.status(401).json({ error: 'Invalid credentials.' });
         }
         const user = result.rows[0];
-
-        // 2. Compare password
         const isMatch = await bcrypt.compare(password, user.password_hash);
         if (!isMatch) {
             console.log('[API POST /login] Login failed: Incorrect password for email:', email);
             return res.status(401).json({ error: 'Invalid credentials.' });
         }
-
-        // --- Check if 2FA is enabled ---
         if (user.is_2fa_enabled) {
-            // 3a. If 2FA is enabled, DO NOT send token yet.
-            // Send response indicating 2FA is required.
-            // Include userId/email to be used in the next step
             console.log(`[API POST /login] 2FA required for user ID: ${user.id}`);
             res.status(200).json({
                 requires2FA: true,
@@ -811,7 +726,6 @@ app.post('/api/auth/login', async (req, res) => {
                 email: user.email 
             });
         } else {
-            // 3b. If 2FA is not enabled, generate and send JWT token as before.
             console.log(`[API POST /login] Login successful (2FA not enabled) for user ID: ${user.id}`);
             const payload = { userId: user.id, username: user.username };
             const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
@@ -822,7 +736,6 @@ app.post('/api/auth/login', async (req, res) => {
                 user: { id: user.id, username: user.username, email: user.email, is_admin: user.is_admin, is_2fa_enabled: user.is_2fa_enabled}
             });
         }
-        // --- End 2FA Check ---
 
     } catch (err) {
         console.error('[API POST /login] Error during login:', err.stack);
@@ -830,29 +743,20 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// == TODO: Add more routes here (e.g., orders, protected routes) ==
-// === PROTECTED ROUTE: Get current user's info ===
-// This route uses the authenticateToken middleware first
+// Protected: Get current user's info
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
-    // If execution reaches here, the token was valid and authenticateToken added `req.user`
-    console.log('Accessing /api/auth/me for user ID:', req.user.userId); // req.user comes from the middleware
-
-    const { userId } = req.user; // Get userId from the JWT payload decoded by the middleware
+    console.log('Accessing /api/auth/me for user ID:', req.user.userId);
+    const { userId } = req.user;
 
     try {
-        // Fetch user details from the database using the userId from the token
-
         const getUserQuery = 'SELECT id, username, email, first_name, last_name, is_2fa_enabled, is_admin FROM users WHERE id = $1';
         const { rows } = await pool.query(getUserQuery, [userId]);
         const userFromDb = rows[0];
 
         if (!userFromDb) {
-            // Should not happen if token is valid unless user was deleted after token issuance
             console.warn(`User with ID ${userId} from token not found in database.`);
             return res.status(404).json({ message: "User associated with token not found" });
         }
-
-        // Send back the relevant user information
         res.status(200).json({
             id: userFromDb.id,
             username: userFromDb.username,
@@ -861,7 +765,6 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
             last_name: userFromDb.last_name,
             is_2fa_enabled: userFromDb.is_2fa_enabled,
             is_admin: userFromDb.is_admin
-            // Add any other non-sensitive fields you want the client to have
         });
 
     } catch (error) {
@@ -870,12 +773,9 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
     }
 });
 
-// ===  Payment Intent API Route ===
-// This route is called by the frontend before confirming the payment
+// Payment Intent API Route
 app.post('/api/create-payment-intent', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
-
-    // Fetch cart items and calculate total here to prevent tampering
     let calculatedAmount = 0;
     try {
         console.log(`[API POST /create-payment-intent] Calculating total for user ID: ${userId}`);
@@ -892,13 +792,11 @@ app.post('/api/create-payment-intent', authenticateToken, async (req, res) => {
         }
 
         calculatedAmount = cartItems.reduce((total, item) => {
-            const price = Number(item.price); // Ensure price is a number
+            const price = Number(item.price);
             return total + (isNaN(price) ? 0 : price * item.quantity);
         }, 0);
-
-        // Convert to smallest currency unit (e.g., pence for GBP, cents for USD/EUR)
         
-        calculatedAmount = Math.round(calculatedAmount * 100); // GBP/USD/EUR
+        calculatedAmount = Math.round(calculatedAmount * 100);
 
         console.log(`[API POST /create-payment-intent] Calculated amount: ${calculatedAmount} (smallest unit) for user ID: ${userId}`);
 
@@ -906,7 +804,6 @@ app.post('/api/create-payment-intent', authenticateToken, async (req, res) => {
              return res.status(400).json({ error: 'Invalid cart total for payment intent.' });
         }
 
-        // Create a PaymentIntent with the order amount and currency
         const paymentIntent = await stripe.paymentIntents.create({
             amount: calculatedAmount,
             currency: 'gbp',
@@ -917,8 +814,6 @@ app.post('/api/create-payment-intent', authenticateToken, async (req, res) => {
         });
 
         console.log(`[API POST /create-payment-intent] PaymentIntent created: ${paymentIntent.id} for user ID: ${userId}`);
-
-        // Send publishable key and PaymentIntent client_secret to client
         res.send({
             clientSecret: paymentIntent.client_secret,
             publishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
@@ -932,44 +827,28 @@ app.post('/api/create-payment-intent', authenticateToken, async (req, res) => {
 
 // === 2FA Setup API Routes ===
 
-// --- Generate 2FA Secret and QR Code ---
-// This endpoint generates a temporary secret and QR code for setup.
-// It doesn't save anything permanently until verification.
 app.post('/api/auth/2fa/generate', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
-    const username = req.user.username; // Get username from token payload
+    const username = req.user.username;
 
     console.log(`[API POST /2fa/generate] Generating 2FA secret for user ID: ${userId}`);
 
     try {
         // Generate a new TOTP secret using Speakeasy
         const secret = speakeasy.generateSecret({
-            name: `TechStop (${username})`, // Label shown in authenticator app
-            issuer: 'TechStop' // Your application name
+            name: `TechStop (${username})`,
+            issuer: 'TechStop'
         });
 
-        // secret.ascii: The secret key in ASCII format
-        // secret.base32: The secret key in Base32 format
-        // secret.otpauth_url: A URL including the secret for easy QR code generation
-
-        console.log(`[API POST /2fa/generate] Secret generated for user ID: ${userId}`);
-        // console.log(secret); // For debugging - DO NOT log secrets in production
-
-        // Generate QR code data URL from the otpauth_url
         qrcode.toDataURL(secret.otpauth_url, (err, data_url) => {
             if (err) {
                 console.error('[API POST /2fa/generate] QR Code generation error:', err);
                 return res.status(500).json({ error: 'Could not generate QR code.' });
             }
-
-            console.log(`[API POST /2fa/generate] QR Code generated for user ID: ${userId}`);
-
-            // Send back the temporary secret (Base32) and the QR code data URL
-            // The frontend needs the secret temporarily to verify the first code.
             res.json({
-                secret: secret.base32, // Send Base32 secret for manual entry if needed
-                qrCodeUrl: data_url, // Send QR code image data URL
-                otpauthUrl: secret.otpauth_url // Send the raw URL (in case)
+                secret: secret.base32,
+                qrCodeUrl: data_url,
+                otpauthUrl: secret.otpauth_url 
             });
         });
 
@@ -980,24 +859,19 @@ app.post('/api/auth/2fa/generate', authenticateToken, async (req, res) => {
 });
 
 // === Verify 2FA Code After Login ===
-// This endpoint is called after successful password login IF 2FA is required.
-app.post('/api/auth/verify-2fa', async (req, res) => {
-    // Expecting userId (sent back from /login) and the totpCode from the user's app
-    const { userId, totpCode } = req.body;
 
-    console.log(`[API POST /verify-2fa] Verifying 2FA code for user ID: ${userId}`);
+app.post('/api/auth/verify-2fa', async (req, res) => {
+    const { userId, totpCode } = req.body;
 
     if (!userId || !totpCode) {
         return res.status(400).json({ error: 'User ID and 2FA code are required.' });
     }
 
     try {
-        // 1. Fetch the user's stored secret and details
         const queryText = 'SELECT id, username, email, totp_secret, is_admin, is_2fa_enabled FROM users WHERE id = $1 AND is_2fa_enabled = TRUE;';
         const { rows } = await pool.query(queryText, [userId]);
 
         if (rows.length === 0) {
-            // User not found or 2FA isn't enabled
             console.error(`[API POST /verify-2fa] User ID ${userId} not found or 2FA not enabled.`);
             return res.status(401).json({ error: 'Invalid user or 2FA not enabled.' });
         }
@@ -1008,16 +882,14 @@ app.post('/api/auth/verify-2fa', async (req, res) => {
              return res.status(500).json({ error: 'Server configuration error for 2FA.' });
         }
 
-        // 2. Verify the submitted code against the stored secret
         const verified = speakeasy.totp.verify({
-            secret: user.totp_secret, // Use the secret stored in the DB
+            secret: user.totp_secret, 
             encoding: 'base32',
             token: totpCode,
-            window: 1 // Allow some time drift
+            window: 1 
         });
 
         if (verified) {
-            // 3. Code is valid, generate and return JWT token.
             console.log(`[API POST /verify-2fa] 2FA code verified for user ID: ${userId}. Issuing token.`);
             const payload = { userId: user.id, username: user.username };
             const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
@@ -1028,7 +900,6 @@ app.post('/api/auth/verify-2fa', async (req, res) => {
                 user: { id: user.id, username: user.username, email: user.email, is_admin: user.is_admin, is_2fa_enabled: user.is_2fa_enabled }
             });
         } else {
-            // 4. Code is invalid.
             console.log(`[API POST /verify-2fa] Invalid 2FA code for user ID: ${userId}`);
             res.status(401).json({ error: 'Invalid 2FA code.' });
         }
@@ -1040,12 +911,9 @@ app.post('/api/auth/verify-2fa', async (req, res) => {
 });
 
 // --- Verify TOTP Token and Enable 2FA ---
-// This endpoint verifies the code entered by the user against the temporary secret
-// and, if valid, saves the secret and enables 2FA in the database.
+
 app.post('/api/auth/2fa/verify', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
-    // The frontend sends the temporary secret received from /generate
-    // along with the token entered by the user from their authenticator app.
     const { token, secret } = req.body;
 
     console.log(`[API POST /2fa/verify] Verifying 2FA token for user ID: ${userId}`);
@@ -1055,17 +923,15 @@ app.post('/api/auth/2fa/verify', authenticateToken, async (req, res) => {
     }
 
     try {
-        // Verify the token submitted by the user against the temporary secret
         const verified = speakeasy.totp.verify({
-            secret: secret, // The Base32 secret generated previously
+            secret: secret, 
             encoding: 'base32',
-            token: token, // The 6-digit code from the user's app
-            window: 1 // Allow codes from 1 step before/after current time window (e.g., 30 seconds)
+            token: token,
+            window: 1
         });
 
         if (verified) {
             console.log(`[API POST /2fa/verify] 2FA token verified successfully for user ID: ${userId}`);
-            // Token is valid, save the secret to the database and enable 2FA.
             const updateQuery = `
                 UPDATE users
                 SET is_2fa_enabled = TRUE,
@@ -1073,7 +939,7 @@ app.post('/api/auth/2fa/verify', authenticateToken, async (req, res) => {
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = $2;
             `;
-            await pool.query(updateQuery, [secret, userId]); // Save the Base32 secret
+            await pool.query(updateQuery, [secret, userId]); 
 
             console.log(`[API POST /2fa/verify] 2FA enabled and secret saved for user ID: ${userId}`);
             res.json({ verified: true, message: '2FA enabled successfully!' });
@@ -1091,10 +957,10 @@ app.post('/api/auth/2fa/verify', authenticateToken, async (req, res) => {
 });
 
 // === Disable 2FA API Route ===
-// This route requires the user's current password to disable 2FA
+
 app.post('/api/auth/2fa/disable', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
-    const { password } = req.body; // Expect password from the request body
+    const { password } = req.body; 
 
     console.log(`[API POST /2fa/disable] Attempting to disable 2FA for user ID: ${userId}`);
 
@@ -1103,7 +969,6 @@ app.post('/api/auth/2fa/disable', authenticateToken, async (req, res) => {
     }
 
     try {
-        // 1. Fetch the user's current hashed password and 2FA status
         const userQuery = 'SELECT id, password_hash, is_2fa_enabled FROM users WHERE id = $1';
         const userResult = await pool.query(userQuery, [userId]);
 
@@ -1112,14 +977,12 @@ app.post('/api/auth/2fa/disable', authenticateToken, async (req, res) => {
         }
         const user = userResult.rows[0];
 
-        // 2. Verify the provided password
         const isPasswordMatch = await bcrypt.compare(password, user.password_hash);
         if (!isPasswordMatch) {
             console.log(`[API POST /2fa/disable] Incorrect password for user ID: ${userId}`);
             return res.status(401).json({ error: 'Incorrect password.' });
         }
 
-        // 3. If password is correct, disable 2FA
         if (user.is_2fa_enabled) {
             const updateQuery = `
                 UPDATE users
@@ -1132,7 +995,6 @@ app.post('/api/auth/2fa/disable', authenticateToken, async (req, res) => {
             console.log(`[API POST /2fa/disable] 2FA disabled successfully for user ID: ${userId}`);
             res.json({ message: 'Two-Factor Authentication has been disabled.' });
         } else {
-            // 2FA is already disabled
             console.log(`[API POST /2fa/disable] 2FA already disabled for user ID: ${userId}`);
             res.json({ message: 'Two-Factor Authentication is already disabled.' });
         }
@@ -1144,17 +1006,14 @@ app.post('/api/auth/2fa/disable', authenticateToken, async (req, res) => {
 });
 
 // === Basic Admin-Only Test Route ===
-// This route is protected by both authenticateToken and authenticateAdmin
 app.get('/api/admin/test', authenticateToken, authenticateAdmin, (req, res) => {
-    // If execution reaches here, the user is authenticated and is an admin
     console.log(`[API GET /api/admin/test] Accessed by admin user ID: ${req.user.userId}`);
     res.json({ message: 'Welcome, Admin! You have accessed a protected admin route.' });
 });
 
 // === Admin Product Management API Routes ===
-// All routes are protected by authenticateToken and authenticateAdmin
 
-// GET /api/admin/products - Fetch all products for admin view
+// Fetch all products for admin view
 app.get('/api/admin/products', authenticateToken, authenticateAdmin, async (req, res) => {
     console.log(`[API GET /api/admin/products] Admin request to fetch all products by user ID: ${req.user.userId}`);
     try {
@@ -1167,9 +1026,8 @@ app.get('/api/admin/products', authenticateToken, authenticateAdmin, async (req,
     }
 });
 
-// POST /api/admin/products - Add a new product
+// Add a new product
 app.post('/api/admin/products', authenticateToken, authenticateAdmin, async (req, res) => {
-    // Destructure all expected product fields from request body
     const { name, description, price, stock_quantity, image_url, category_id } = req.body;
     console.log(`[API POST /api/admin/products] Admin request to add new product: ${name} by user ID: ${req.user.userId}`);
 
@@ -1179,7 +1037,7 @@ app.post('/api/admin/products', authenticateToken, authenticateAdmin, async (req
     }
     const numericPrice = Number(price);
     const intStockQuantity = parseInt(stock_quantity, 10);
-    const intCategoryId = category_id ? parseInt(category_id, 10) : null; // Handle optional category_id
+    const intCategoryId = category_id ? parseInt(category_id, 10) : null;
 
     if (isNaN(numericPrice) || numericPrice < 0) {
         return res.status(400).json({ error: 'Invalid price format.' });
@@ -1187,7 +1045,7 @@ app.post('/api/admin/products', authenticateToken, authenticateAdmin, async (req
     if (isNaN(intStockQuantity) || intStockQuantity < 0) {
         return res.status(400).json({ error: 'Invalid stock quantity format.' });
     }
-    if (category_id && (isNaN(intCategoryId) || intCategoryId <= 0) && intCategoryId !== null) { // Check if category_id is a positive int if provided
+    if (category_id && (isNaN(intCategoryId) || intCategoryId <= 0) && intCategoryId !== null) {
         return res.status(400).json({ error: 'Invalid category ID format.' });
     }
 
@@ -1197,7 +1055,6 @@ app.post('/api/admin/products', authenticateToken, authenticateAdmin, async (req
             VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             RETURNING *;
         `;
-        // Ensure image_url is null if not provided or empty
         const values = [name, description, numericPrice, intStockQuantity, image_url || null, intCategoryId];
         const result = await pool.query(query, values);
         const newProduct = result.rows[0];
@@ -1214,10 +1071,9 @@ app.post('/api/admin/products', authenticateToken, authenticateAdmin, async (req
     }
 });
 
-// PUT /api/admin/products/:productId - Update an existing product
+// Update an existing product
 app.put('/api/admin/products/:productId', authenticateToken, authenticateAdmin, async (req, res) => {
     const { productId } = req.params;
-    // Destructure fields that can be updated
     const { name, description, price, stock_quantity, image_url, category_id } = req.body;
     console.log(`[API PUT /api/admin/products/:productId] Admin request to update product ID: ${productId} by user ID: ${req.user.userId}`);
 
@@ -1226,7 +1082,6 @@ app.put('/api/admin/products/:productId', authenticateToken, authenticateAdmin, 
         return res.status(400).json({ error: 'Invalid Product ID format.' });
     }
 
-    // Build the update query dynamically based on provided fields
     const fieldsToUpdate = {};
     if (name !== undefined) fieldsToUpdate.name = name;
     if (description !== undefined) fieldsToUpdate.description = description;
@@ -1257,7 +1112,6 @@ app.put('/api/admin/products/:productId', authenticateToken, authenticateAdmin, 
 
     fieldsToUpdate.updated_at = new Date();
 
-    // Constructing SET clauses and values array for the query
     const setClauses = Object.keys(fieldsToUpdate).map((key, index) => `"${key}" = $${index + 1}`).join(', ');
     const values = Object.values(fieldsToUpdate);
     values.push(intProductId);
@@ -1273,14 +1127,14 @@ app.put('/api/admin/products/:productId', authenticateToken, authenticateAdmin, 
         res.json(updatedProduct);
     } catch (err) {
         console.error(`[API PUT /api/admin/products/:productId] Error updating product ID ${intProductId}:`, err.stack);
-         if (err.code === '23503') { // PostgreSQL foreign key violation 
+         if (err.code === '23503') { // FK violation
             return res.status(400).json({ error: 'Invalid category ID or other foreign key constraint.' });
         }
         res.status(500).json({ error: 'Internal Server Error updating product.' });
     }
 });
 
-// DELETE /api/admin/products/:productId - Delete a product
+// Delete a product
 app.delete('/api/admin/products/:productId', authenticateToken, authenticateAdmin, async (req, res) => {
     const { productId } = req.params;
     console.log(`[API DELETE /api/admin/products/:productId] Admin request to delete product ID: ${productId} by user ID: ${req.user.userId}`);
@@ -1291,7 +1145,6 @@ app.delete('/api/admin/products/:productId', authenticateToken, authenticateAdmi
     }
 
     try {
-        // First, check if the product is referenced in order_items
         const checkOrderItemsQuery = 'SELECT COUNT(*) FROM order_items WHERE product_id = $1';
         const orderItemsResult = await pool.query(checkOrderItemsQuery, [intProductId]);
         if (parseInt(orderItemsResult.rows[0].count, 10) > 0) {
@@ -1299,7 +1152,6 @@ app.delete('/api/admin/products/:productId', authenticateToken, authenticateAdmi
             return res.status(409).json({ error: 'Cannot delete product. It is referenced in existing orders. Consider deactivating the product instead.' });
         }
 
-        // If not in orders, proceed with deletion
         const query = 'DELETE FROM products WHERE id = $1 RETURNING *;';
         const result = await pool.query(query, [intProductId]);
 
@@ -1319,7 +1171,7 @@ app.delete('/api/admin/products/:productId', authenticateToken, authenticateAdmi
     }
 });
 
-// GET /api/admin/categories - Fetch all categories for admin view
+// Fetch all categories for admin view
 app.get('/api/admin/categories', authenticateToken, authenticateAdmin, async (req, res) => {
     console.log(`[API GET /api/admin/categories] Admin request to fetch all categories by user ID: ${req.user.userId}`);
     try {
@@ -1334,7 +1186,7 @@ app.get('/api/admin/categories', authenticateToken, authenticateAdmin, async (re
 
 // === Admin Categories Management API Routes ===
 
-// --- GET /api/admin/categories - Fetch all categories for admin view ---
+// Fetch all categories for admin view
 app.get('/api/admin/categories', authenticateToken, authenticateAdmin, async (req, res) => {
     console.log(`[API GET /api/admin/categories] Admin request to fetch all categories by user ID: ${req.user.userId}`);
     try {
@@ -1347,7 +1199,7 @@ app.get('/api/admin/categories', authenticateToken, authenticateAdmin, async (re
     }
 });
 
-// --- POST /api/admin/categories - Create a new category ---
+// Create a new category 
 app.post('/api/admin/categories', authenticateToken, authenticateAdmin, async (req, res) => {
     const { name, description } = req.body;
     console.log(`[API POST /api/admin/categories] Admin request to create category: ${name}`);
@@ -1362,7 +1214,7 @@ app.post('/api/admin/categories', authenticateToken, authenticateAdmin, async (r
             VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             RETURNING *;
         `;
-        const values = [name, description || null]; // Allow description to be optional
+        const values = [name, description || null];
         const result = await pool.query(query, values);
         const newCategory = result.rows[0];
 
@@ -1377,7 +1229,7 @@ app.post('/api/admin/categories', authenticateToken, authenticateAdmin, async (r
     }
 });
 
-// --- PUT /api/admin/categories/:categoryId - Update an existing category ---
+// Update an existing category
 app.put('/api/admin/categories/:categoryId', authenticateToken, authenticateAdmin, async (req, res) => {
     const { categoryId } = req.params;
     const { name, description } = req.body;
@@ -1387,13 +1239,10 @@ app.put('/api/admin/categories/:categoryId', authenticateToken, authenticateAdmi
     if (isNaN(intCategoryId)) {
         return res.status(400).json({ error: 'Invalid Category ID format.' });
     }
-
-    // At least one field must be provided for update
     if (name === undefined && description === undefined) {
         return res.status(400).json({ error: 'At least one field (name or description) must be provided for update.' });
     }
 
-    // Build the update query dynamically
     const fieldsToUpdate = {};
     if (name !== undefined) fieldsToUpdate.name = name;
     if (description !== undefined) fieldsToUpdate.description = description === '' ? null : description; // Allow clearing description
@@ -1402,7 +1251,7 @@ app.put('/api/admin/categories/:categoryId', authenticateToken, authenticateAdmi
          return res.status(400).json({ error: 'No valid fields provided for update.' });
     }
 
-    fieldsToUpdate.updated_at = new Date(); // Always update the timestamp
+    fieldsToUpdate.updated_at = new Date();
 
     const setClauses = Object.keys(fieldsToUpdate).map((key, index) => `"${key}" = $${index + 1}`).join(', ');
     const values = Object.values(fieldsToUpdate);
@@ -1427,7 +1276,7 @@ app.put('/api/admin/categories/:categoryId', authenticateToken, authenticateAdmi
     }
 });
 
-// --- DELETE /api/admin/categories/:categoryId - Delete a category ---
+//  Delete a category
 app.delete('/api/admin/categories/:categoryId', authenticateToken, authenticateAdmin, async (req, res) => {
     const { categoryId } = req.params;
     console.log(`[API DELETE /api/admin/categories] Admin request to delete category ID: ${categoryId}`);
@@ -1458,12 +1307,10 @@ app.delete('/api/admin/categories/:categoryId', authenticateToken, authenticateA
 
 // === Admin Order Management API Routes ===
 
-// GET /api/admin/orders - Fetch all orders for admin view
+// Fetch all orders for admin view
 app.get('/api/admin/orders', authenticateToken, authenticateAdmin, async (req, res) => {
     console.log(`[API GET /api/admin/orders] Admin request to fetch all orders by admin user ID: ${req.user.userId}`);
     try {
-        // Query to get all order details, joining with users table to get user email/username
-        // Ordering by order_date descending to show newest orders first
         const query = `
             SELECT
                 o.id AS order_id,
@@ -1483,8 +1330,6 @@ app.get('/api/admin/orders', authenticateToken, authenticateAdmin, async (req, r
         const { rows } = await pool.query(query);
 
         console.log(`[API GET /api/admin/orders] Found ${rows.length} total orders.`);
-
-        // Send the list of all orders back to the client
         res.status(200).json(rows);
 
     } catch (error) {
@@ -1493,13 +1338,11 @@ app.get('/api/admin/orders', authenticateToken, authenticateAdmin, async (req, r
     }
 });
 
-// ... Fetch Single Order Details API Route ...
-// This route is protected by both authenticateToken and authenticateAdmin
+// Fetch Single Order Details API Route
 app.get('/api/admin/orders/:orderId', authenticateToken, authenticateAdmin, async (req, res) => {
     const { orderId } = req.params;
     const adminUserId = req.user.userId;
 
-    // Validate orderId is a number
     const intOrderId = parseInt(orderId, 10);
     if (isNaN(intOrderId)) {
         return res.status(400).json({ error: 'Invalid Order ID format.' });
@@ -1508,7 +1351,6 @@ app.get('/api/admin/orders/:orderId', authenticateToken, authenticateAdmin, asyn
     console.log(`[API GET /api/admin/orders/:orderId] Admin User ID: ${adminUserId} fetching details for Order ID: ${intOrderId}`);
 
     try {
-        // --- Fetch main order details ---.
         const orderQuery = `
             SELECT
                 o.id AS order_id,
@@ -1527,15 +1369,13 @@ app.get('/api/admin/orders/:orderId', authenticateToken, authenticateAdmin, asyn
         `;
         const orderResult = await pool.query(orderQuery, [intOrderId]);
 
-        // Check if order exists
         if (orderResult.rows.length === 0) {
             console.log(`[API GET /api/admin/orders/:orderId] Order ID: ${intOrderId} not found.`);
             return res.status(404).json({ error: 'Order not found.' });
         }
         const orderDetails = orderResult.rows[0];
 
-        // --- Fetch associated order items ---
-        // Join with products table to get product details
+        // Fetch associated order items
         const itemsQuery = `
             SELECT
                 oi.product_id,
@@ -1559,7 +1399,7 @@ app.get('/api/admin/orders/:orderId', authenticateToken, authenticateAdmin, asyn
         console.log(`[API GET /api/admin/orders/:orderId] Found ${orderItems.length} items for Order ID: ${intOrderId}`);
 
 
-        // --- Fetch shipping address details ---
+        // Fetch shipping address details
         let shippingAddress = null;
         if (orderDetails.shipping_address_id) {
             const addressQuery = `
@@ -1586,11 +1426,10 @@ app.get('/api/admin/orders/:orderId', authenticateToken, authenticateAdmin, asyn
              console.log(`[API GET /api/admin/orders/:orderId] No shipping address ID associated with Order ID: ${intOrderId}`);
         }
 
-        // --- Combine results and send response ---
         const fullOrderDetails = {
             ...orderDetails, // Spread main order details (id, date, total, status, address IDs, user info)
-            items: orderItems, // Add the array of items
-            shippingAddress: shippingAddress // Add the fetched shipping address object (or null)
+            items: orderItems, 
+            shippingAddress: shippingAddress
         };
 
         res.status(200).json(fullOrderDetails);
@@ -1601,14 +1440,12 @@ app.get('/api/admin/orders/:orderId', authenticateToken, authenticateAdmin, asyn
     }
 });
 
-// === NEW: Admin - Update Order Status API Route ===
-// This route is protected by both authenticateToken and authenticateAdmin
+// Admin - Update Order Status API Route
 app.put('/api/admin/orders/:orderId/status', authenticateToken, authenticateAdmin, async (req, res) => {
-    const { orderId } = req.params; // Get order ID from URL parameter
-    const { status } = req.body; // Get the new status from the request body
-    const adminUserId = req.user.userId; // For logging
+    const { orderId } = req.params; 
+    const { status } = req.body;
+    const adminUserId = req.user.userId;
 
-    // Validate orderId
     const intOrderId = parseInt(orderId, 10);
     if (isNaN(intOrderId)) {
         return res.status(400).json({ error: 'Invalid Order ID format.' });
@@ -1627,7 +1464,6 @@ app.put('/api/admin/orders/:orderId/status', authenticateToken, authenticateAdmi
         ${adminUserId} updating status for Order ID: ${intOrderId} to "${status}"`);
 
     try {
-        // Update the order status and updated_at timestamp in the database
         const updateQuery = `
             UPDATE orders
             SET status = $1,
@@ -1653,7 +1489,7 @@ app.put('/api/admin/orders/:orderId/status', authenticateToken, authenticateAdmi
     }
 });
 
-// --- Start the Server ---
+// starting server
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });

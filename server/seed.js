@@ -38,7 +38,6 @@ const sampleProducts = [
     },
 ];
 
-// Async function to conduct seeding
 async function seedDatabase() {
     console.log('Starting database seeding...');
 
