@@ -11,13 +11,11 @@ function AdminOrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { token } = useAuth();
-
-  // --- State for status update ---
   const [selectedStatus, setSelectedStatus] = useState('');
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [statusUpdateError, setStatusUpdateError] = useState('');
   const [statusUpdateSuccess, setStatusUpdateSuccess] = useState('');
-  // --- End State ---
+
 
   // Helper function to format date/time
   const formatDateTime = (isoString) => { 
@@ -29,13 +27,14 @@ function AdminOrderDetailPage() {
             day: 'numeric',
             hour: '2-digit',
             minute: '2-digit' }); 
-        } catch (e) { return isoString; } };
+        } catch (err) { 
+          return isoString || err ;
+        } 
+      };
 
-  // Fetch order details
   const fetchOrderDetails = useCallback(async () => {
     if (!token || !orderId) { setError("Missing token or Order ID."); setLoading(false); return; }
-    console.log(`AdminOrderDetailPage: Fetching details for Order ID: ${orderId}`);
-    setLoading(true); setError(null); setStatusUpdateError(''); setStatusUpdateSuccess(''); // Clear status messages on refetch
+    setLoading(true); setError(null); setStatusUpdateError(''); setStatusUpdateSuccess('');
     try {
       const response = await fetch(`/api/admin/orders/${orderId}`, {
         method: 'GET',
@@ -45,7 +44,7 @@ function AdminOrderDetailPage() {
       if (!response.ok) { throw new Error(data.error || `Failed to fetch order details: ${response.status}`); }
       console.log("AdminOrderDetailPage: Order details fetched:", data);
       setOrder(data);
-      setSelectedStatus(data.status || ''); // Initialize selectedStatus with current order status
+      setSelectedStatus(data.status || '');
     } catch (err) {
       console.error("AdminOrderDetailPage: Error fetching order details:", err);
       setError(err.message); setOrder(null);
@@ -59,7 +58,6 @@ function AdminOrderDetailPage() {
   }, [fetchOrderDetails]);
 
 
-  // --- Handler for updating order status ---
   const handleStatusUpdate = async () => {
     if (!selectedStatus || selectedStatus === order?.status) {
       setStatusUpdateError("Please select a new status or no change detected.");
@@ -91,9 +89,8 @@ function AdminOrderDetailPage() {
         throw new Error(data.error || `Failed to update order status: ${response.status}`);
       }
       console.log("AdminOrderDetailPage: Order status updated successfully:", data);
-      // Update local order state with the response from backend (which includes the updated order)
       setOrder(data);
-      setSelectedStatus(data.status); // Ensure dropdown reflects the saved status
+      setSelectedStatus(data.status);
       setStatusUpdateSuccess(`Order status successfully updated to "${data.status}".`);
       setTimeout(() => {
         setStatusUpdateSuccess('');
@@ -107,10 +104,8 @@ function AdminOrderDetailPage() {
       setIsUpdatingStatus(false);
     }
   };
-  // --- End Handler ---
 
 
-  // --- Render Logic ---
   if (loading) { return <div className="text-center text-gray-500 py-10">Loading order details...</div>; }
   if (error) { return <div className="text-center text-red-600 bg-red-100 p-4 rounded-md max-w-lg mx-auto">Error: {error}</div>; }
   if (!order) { return <div className="text-center text-gray-500 py-10">Order not found.</div>; }

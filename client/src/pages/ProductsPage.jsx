@@ -2,25 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
 function ProductsPage() {
-  // --- State for products, loading, and errors ---
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // --- Effect to fetch products when the component mounts ---
   useEffect(() => {
     console.log("ProductsPage: Fetching products...");
     setLoading(true);
-    setError(null); // Clear previous errors
-    fetch('/api/products') // Assuming proxy is set up in vite.config.js
+    setError(null); 
+    fetch('/api/products')
       .then(response => {
         if (!response.ok) {
-           // Try parsing error JSON, fallback to status text
            return response.json().catch(() => null).then(errData => {
                throw new Error(errData?.error || `HTTP error fetching products! status: ${response.status}`);
            });
         }
-        return response.json(); // Parse JSON if response is OK
+        return response.json();
       })
       .then(data => {
         console.log("ProductsPage: Products fetched successfully.", data);
@@ -28,17 +25,16 @@ function ProductsPage() {
       })
       .catch(err => {
         console.error("ProductsPage: Error fetching products:", err);
-        setError(err.message); // Set error state to display to user
-        setProducts([]); // Clear products on error
+        setError(err.message);
+        setProducts([]);
       })
       .finally(() => {
-        setLoading(false); // Set loading to false
+        setLoading(false);
       });
-  }, []); // Empty dependency array means this runs once when the component mounts
+  }, []);
 
-  // --- Render logic based on state ---
+  // --- Render logic ---
   return (
-    // Tailwind classes for overall page layout
     <div className="container mx-auto px-4 py-8"> {/* Centered container with padding */}
       <h1 className="text-3xl font-bold text-gray-800 mb-6">Products</h1> {/* Styled heading */}
 
@@ -59,10 +55,8 @@ function ProductsPage() {
 
       {/* Products Grid */}
       {!loading && !error && products.length > 0 && (
-        // Responsive grid layout: 1 col on small, 2 on sm, 3 on md, 4 on lg
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {products.map(product => (
-            // Product Card Styling
             <div key={product.id} className="border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
               <Link to={`/products/${product.id}`} className="block">
                 {/* Image Placeholder/Container */}
@@ -77,7 +71,7 @@ function ProductsPage() {
                   ) : (
                     <span className="text-gray-500 text-sm">No Image</span> // Placeholder text
                   )}
-                   {/* Fallback text shown if image fails to load */}
+                   {/* Image Fallback*/}
                    {!product.image_url && <span className="text-gray-500 text-sm hidden">No Image</span>}
                 </div>
                 {/* Product Info Section */}

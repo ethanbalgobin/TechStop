@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom'; // Import Link
+import { Link } from 'react-router-dom';
 
 function AdminDashboardPage() {
   return (
@@ -10,10 +10,8 @@ function AdminDashboardPage() {
       </p>
       <p className="text-gray-700 mb-6">This area is restricted to approved administrators only.</p>
 
-      {/* Links to Admin Sections */}
       <div className="flex flex-wrap space-x-4">
         <div>
-          {/* --- Link to Admin Products Page --- */}
           <Link
             to="/admin/products"
             className="inline-block px-6 py-3 text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
@@ -21,7 +19,6 @@ function AdminDashboardPage() {
             Manage Products
           </Link>
         </div>
-        {/* --- Link to Admin Categories Page --- */}
         <div>
           <Link
             to="/admin/categories"
@@ -30,7 +27,6 @@ function AdminDashboardPage() {
             Manage Categories
           </Link>
         </div>
-        {/* Placeholders */}
         <div>
           <Link
             to="/admin/orders"
@@ -39,7 +35,6 @@ function AdminDashboardPage() {
             Manage Orders
           </Link>
         </div>
-        {/* Placeholders */}
       </div>
     </div>
   );

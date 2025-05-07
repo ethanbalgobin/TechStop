@@ -4,7 +4,6 @@ import { useCart } from '../context/CartContext';
 
 function ProductDetailPage() {
   const { productId } = useParams();
-  // Get the addToCart function from the CartContext
   const { addToCart } = useCart();
 
   const [product, setProduct] = useState(null);
@@ -22,7 +21,7 @@ function ProductDetailPage() {
     console.log(`ProductDetailPage: Fetching product with ID: ${productId}`);
     setLoading(true);
     setError(null);
-    setAddedMessage(''); // Clear message on new product load
+    setAddedMessage('');
 
     fetch(`/api/products/${productId}`)
       .then(response => {
@@ -47,13 +46,12 @@ function ProductDetailPage() {
       });
   }, [productId]);
 
-  // Handler function for the Add to Cart button
   const handleAddToCart = () => {
     if (product) {
-      addToCart(product); // Call the function from context
+      addToCart(product);
       console.log("ProductDetailPage: Added to cart:", product.name);
       setAddedMessage(`${product.name} added to cart!`);
-      setTimeout(() => setAddedMessage(''), 3000); // Clear after 3 seconds
+      setTimeout(() => setAddedMessage(''), 3000);
     } else {
       console.error("ProductDetailPage: Cannot add to cart, product data not loaded.");
     }
@@ -63,12 +61,10 @@ function ProductDetailPage() {
   // --- Render Logic ---
 
   if (loading) {
-    // Centered loading text
     return <div className="text-center text-gray-500 py-10">Loading product details...</div>;
   }
 
   if (error) {
-    // Centered error message with styling
     return <div className="text-center text-red-600 bg-red-100 p-4 rounded-md max-w-md mx-auto">Error loading product: {error}</div>;
   }
 
@@ -76,11 +72,8 @@ function ProductDetailPage() {
     return <div className="text-center text-gray-500 py-10">Product not found or unable to load.</div>;
   }
 
-  // Display product details if successfully loaded
   return (
-    // Container with padding
     <div className="container mx-auto px-4 py-8">
-      {/* Back link styling */}
       <Link
         to="/products"
         className="inline-block mb-6 text-blue-600 hover:text-blue-800"
@@ -88,23 +81,19 @@ function ProductDetailPage() {
         &larr; Back to Products
       </Link>
 
-      {/* Main content grid (responsive: 1 col on small, 2 cols on medium+) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
-
-        {/* Image Column */}
         <div className="w-full aspect-square bg-gray-100 flex items-center justify-center overflow-hidden rounded-lg border border-gray-200">
            {product.image_url ? (
             <img
                 src={product.image_url}
                 alt={product.name}
-                className="h-full w-full object-contain mix-blend-multiply" // Use object-contain
+                className="h-full w-full object-contain mix-blend-multiply" 
             />
           ) : (
-            <span className="text-gray-400 text-sm">No Image Available</span> // Placeholder text
+            <span className="text-gray-400 text-sm">No Image Available</span>
           )}
         </div>
 
-        {/* Details Column */}
         <div className="flex flex-col justify-center">
           <h1 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-3">
             {product.name}
@@ -116,8 +105,7 @@ function ProductDetailPage() {
             {product.description || 'No description available.'}
           </p>
 
-          {/* Add to Cart Button */}
-          <div className="mt-auto"> {/* Pushes button to bottom if content is short */}
+          <div className="mt-auto">
             <button
               onClick={handleAddToCart}
               // Primary action button style
@@ -125,7 +113,6 @@ function ProductDetailPage() {
             >
               Add to Cart
             </button>
-            {/* Display feedback message */}
             {addedMessage && <p className="text-green-600 mt-3 text-sm">{addedMessage}</p>}
           </div>
         </div>

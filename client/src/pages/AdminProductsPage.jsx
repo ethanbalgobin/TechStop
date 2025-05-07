@@ -2,20 +2,20 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-// --- Reusable ProductForm Component ---
+
 function ProductForm({ initialData = {}, categories = [], onSubmit, onCancel, isLoading }) {
   const [formData, setFormData] = useState({
     name: initialData.name || '', description: initialData.description || '',
     price: initialData.price || '', stock_quantity: initialData.stock_quantity || '',
     image_url: initialData.image_url || '', category_id: initialData.category_id || '',
   });
-  useEffect(() => { // Ensure form resets when initialData changes (e.g., switching from Add to Edit)
+  useEffect(() => {
       setFormData({
           name: initialData.name || '', description: initialData.description || '',
           price: initialData.price || '', stock_quantity: initialData.stock_quantity || '',
           image_url: initialData.image_url || '', category_id: initialData.category_id || '',
       });
-  }, [initialData]); // Dependency on initialData
+  }, [initialData]);
   const handleChange = (e) => { /* ... */ const { name, value } = e.target; setFormData(prev => ({ ...prev, [name]: value })); };
   const handleSubmit = (e) => { /* ... */ e.preventDefault(); const submitData = { ...formData, price: parseFloat(formData.price) || 0, stock_quantity: parseInt(formData.stock_quantity, 10) || 0, category_id: formData.category_id ? parseInt(formData.category_id, 10) : null, }; onSubmit(submitData); };
   const inputClasses = "appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm";
@@ -41,7 +41,6 @@ function ProductForm({ initialData = {}, categories = [], onSubmit, onCancel, is
 }
 
 
-// --- Main Admin Products Page Component ---
 function AdminProductsPage() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -53,14 +52,10 @@ function AdminProductsPage() {
   const [editingProduct, setEditingProduct] = useState(null);
   const [formError, setFormError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // --- State for Delete Confirmation ---
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [productToDelete, setProductToDelete] = useState(null); // Store {id, name}
+  const [productToDelete, setProductToDelete] = useState(null);
   const [deleteConfirmChecked, setDeleteConfirmChecked] = useState(false);
-  // --- End Delete Confirmation State ---
 
-  // Fetch products
   const fetchProducts = useCallback(async () => {
     if (!token) { setError("Authentication token not found."); setLoading(false); return; } 
     setLoading(true); 
@@ -77,7 +72,7 @@ function AdminProductsPage() {
     } finally { 
       setLoading(false); 
     } }, [token]);
-  // Fetch categories
+
   const fetchCategories = useCallback(async () => {
      if (!token) return; 
      setLoadingCategories(true); 
@@ -88,37 +83,59 @@ function AdminProductsPage() {
          throw new Error(data.error || `Failed to fetch categories: ${response.status}`); 
       } 
       setCategories(data); 
-    } catch (err) {
+    } catch {
       setError(prev => prev ? `${prev}\nCould not load categories.` : 'Could not load categories.');
       setCategories([]); 
     } finally { setLoadingCategories(false); } }, [token]);
 
-  // Fetch data on mount
   useEffect(() => { fetchProducts(); fetchCategories(); }, [fetchProducts, fetchCategories]);
 
   // Form Handlers
   const handleShowAddForm = () => { setEditingProduct(null); setFormError(''); setShowForm(true); };
   const handleShowEditForm = (product) => { setEditingProduct(product); setFormError(''); setShowForm(true); };
   const handleCancelForm = () => { setShowForm(false); setEditingProduct(null); setFormError(''); };
-  const handleFormSubmit = async (productData) => { /* ... remains same ... */ setIsSubmitting(true); setFormError(''); const isEditing = !!editingProduct; const url = isEditing ? `/api/admin/products/${editingProduct.id}` : '/api/admin/products'; const method = isEditing ? 'PUT' : 'POST'; try { const response = await fetch(url, { method: method, headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', }, body: JSON.stringify(productData), }); const result = await response.json(); if (!response.ok) { throw new Error(result.error || `Failed to ${isEditing ? 'update' : 'add'} product.`); } setShowForm(false); setEditingProduct(null); fetchProducts(); } catch (err) { setFormError(err.message || `An error occurred.`); } finally { setIsSubmitting(false); } };
+  const handleFormSubmit = async (productData) => {
+    setIsSubmitting(true); 
+    setFormError(''); 
+    const isEditing = !!editingProduct; 
+    const url = isEditing ? `/api/admin/products/${editingProduct.id}` : '/api/admin/products'; 
+    const method = isEditing ? 'PUT' : 'POST';
+    try { 
+      const response = await fetch(url, {
+        method: method,
+        headers: { 'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json', }, 
+        body: JSON.stringify(productData), 
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || `Failed to ${isEditing ? 'update' : 'add'} product.`);
+      }
+      setShowForm(false);
+      setEditingProduct(null);
+      fetchProducts(); 
+    }
+    catch (err) {
+      setFormError(err.message || `An error occurred.`); 
+    } finally {
+      setIsSubmitting(false); 
+    } };
 
-  // --- Delete Handler - Opens Confirmation ---
   const handleDeleteProduct = (productId, productName) => {
     console.log(`Initiating delete for Product ID: ${productId}`);
-    setProductToDelete({ id: productId, name: productName }); // Store product info
-    setDeleteConfirmChecked(false); // Reset checkbox
-    setShowDeleteConfirm(true); // Show the confirmation dialog
-    setError(''); // Clear main page errors
+    setProductToDelete({ id: productId, name: productName });
+    setDeleteConfirmChecked(false); 
+    setShowDeleteConfirm(true); 
+    setError('');
   };
 
-  // --- Handler for Confirming Deletion ---
   const handleConfirmDelete = async () => {
     if (!productToDelete || !deleteConfirmChecked) {
       console.log("Delete confirmation not checked or product not set.");
       return;
     }
     console.log(`Confirming delete for Product ID: ${productToDelete.id}`);
-    setIsSubmitting(true); // Use isSubmitting to disable buttons
+    setIsSubmitting(true);
     setError('');
     try {
         const response = await fetch(`/api/admin/products/${productToDelete.id}`, {
@@ -130,20 +147,19 @@ function AdminProductsPage() {
             throw new Error(result.error || `Failed to delete product: ${response.status}`);
         }
         console.log(`Product ID: ${productToDelete.id} deleted successfully.`);
-        setShowDeleteConfirm(false); // Close confirmation dialog
+        setShowDeleteConfirm(false);
         setProductToDelete(null);
-        fetchProducts(); // Refresh the product list
+        fetchProducts();
     } catch (err) {
         console.error(`Error deleting product ID ${productToDelete.id}:`, err);
-        setError(err.message || 'Could not delete product.'); // Show error on main page
-        setShowDeleteConfirm(false); // Close dialog even on error
+        setError(err.message || 'Could not delete product.'); 
+        setShowDeleteConfirm(false);
         setProductToDelete(null);
     } finally {
         setIsSubmitting(false);
     }
   };
 
-  // --- Handler for Cancelling Deletion ---
   const handleCancelDelete = () => {
     setShowDeleteConfirm(false);
     setProductToDelete(null);
@@ -162,7 +178,6 @@ function AdminProductsPage() {
 
   return (
     <div className="container mx-auto px-4 py-8 relative">
-      {/* Header and Add Button */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-800">Manage Products</h1>
         <button onClick={handleShowAddForm} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
@@ -190,14 +205,12 @@ function AdminProductsPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {products.map(product => (
                 <tr key={product.id}>
-                  {/* Table cells remain the same */}
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{product.id}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 truncate max-w-xs" title={product.name}>{product.name}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${Number(product.price).toFixed(2)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.stock_quantity}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.category_id || 'N/A'}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                    {/* Buttons now call handlers to show forms/dialogs */}
                     <button onClick={() => handleShowEditForm(product)} className="text-indigo-600 hover:text-indigo-900"> Edit </button>
                     <button onClick={() => handleDeleteProduct(product.id, product.name)} className="text-red-600 hover:text-red-900"> Delete </button>
                   </td>
@@ -208,7 +221,7 @@ function AdminProductsPage() {
         </div>
       )}
 
-      {/* Conditionally render the Add/Edit Form */}
+      {/* Add/Edit Form */}
       {showForm && (
         <ProductForm
           initialData={editingProduct || {}} categories={categories}
@@ -220,7 +233,7 @@ function AdminProductsPage() {
       {formError && <div className="text-red-600 mt-4">{formError}</div>}
 
 
-      {/* --- NEW: Conditionally render the Delete Confirmation Dialog --- */}
+      {/* --- Delete Confirmation Dialog --- */}
       {showDeleteConfirm && productToDelete && (
          <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
@@ -228,7 +241,6 @@ function AdminProductsPage() {
                 <p className="text-sm text-gray-600 mb-4">
                     Are you sure you want to delete the product "{productToDelete.name}" (ID: {productToDelete.id})? This action cannot be undone.
                 </p>
-                {/* Confirmation Checkbox */}
                 <div className="flex items-center mb-4">
                     <input
                         id="delete-confirm-checkbox"
@@ -255,7 +267,6 @@ function AdminProductsPage() {
                     <button
                         type="button"
                         onClick={handleConfirmDelete}
-                        // Disable if checkbox isn't checked or if submitting
                         disabled={!deleteConfirmChecked || isSubmitting}
                         className={deleteButtonClasses}
                     >
@@ -265,8 +276,6 @@ function AdminProductsPage() {
             </div>
          </div>
       )}
-      {/* --- End Delete Confirmation Dialog --- */}
-
     </div>
   );
 }

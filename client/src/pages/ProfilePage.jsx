@@ -10,12 +10,8 @@ function ProfilePage() {
   const [isDisabling2FA, setIsDisabling2FA] = useState(false);
   const [disable2FAError, setDisable2FAError] = useState('');
   const [disable2FAMessage, setDisable2FAMessage] = useState('');
-
-  // --- State for custom password prompt ---
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   const [passwordToDisable, setPasswordToDisable] = useState('');
-  // --- End State ---
-
   const { token, logout, dismiss2FAReminder } = useAuth();
   const navigate = useNavigate();
 
@@ -25,7 +21,7 @@ function ProfilePage() {
       setLoading(false);
       return;
     }
-    console.log("ProfilePage: Fetching profile data...");
+
     setLoading(true);
     setError(null);
     setDisable2FAError('');
@@ -65,10 +61,9 @@ function ProfilePage() {
     dismiss2FAReminder();
   };
 
-  // --- Handler for disabling 2FA ---
   const handleDisable2FAInitiate = () => {
     setShowPasswordPrompt(true);
-    setPasswordToDisable(''); // Clear any previous password
+    setPasswordToDisable('');
     setDisable2FAError('');
     setDisable2FAMessage('');
   };
@@ -99,10 +94,10 @@ function ProfilePage() {
       }
 
       setDisable2FAMessage(data.message || '2FA has been disabled.');
-      setShowPasswordPrompt(false); // Hide password prompt on success
-      setPasswordToDisable('');    // Clear password
-      fetchProfileData();      // Refetch profile data
-      dismiss2FAReminder();    // Dismiss reminder
+      setShowPasswordPrompt(false);
+      setPasswordToDisable('');
+      fetchProfileData();
+      dismiss2FAReminder();
 
     } catch (err) {
       console.error("Error disabling 2FA:", err);
@@ -113,14 +108,12 @@ function ProfilePage() {
   };
 
 
-  // --- Styling Classes ---
   const inputClasses = "appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm";
   const labelClasses = "block text-sm font-medium text-gray-700 mb-1";
   const buttonClasses = "px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50";
   const secondaryButtonClasses = "px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50";
 
 
-  // --- Render Logic ---
   if (loading && !userProfile) {
     return <div className="text-center text-gray-500 py-10">Loading profile...</div>;
   }
@@ -137,7 +130,6 @@ function ProfilePage() {
 
       {/* Profile Details Section */}
       <div className="bg-white shadow-md rounded-lg p-6 border border-gray-200 space-y-5 mb-8">
-        {/* ... User details ... */}
         <div><span className={labelClasses + " uppercase tracking-wider"}>User ID</span><span className="block text-sm text-gray-900 mt-1">{userProfile.id}</span></div>
         <div><span className={labelClasses + " uppercase tracking-wider"}>Username</span><span className="block text-sm text-gray-900 mt-1">{userProfile.username}</span></div>
         <div><span className={labelClasses + " uppercase tracking-wider"}>Email</span><span className="block text-sm text-gray-900 mt-1">{userProfile.email}</span></div>
@@ -197,7 +189,7 @@ function ProfilePage() {
                             <button
                                 onClick={handleConfirmDisable2FA}
                                 disabled={isDisabling2FA || !passwordToDisable}
-                                className={`${buttonClasses} bg-red-600 hover:bg-red-700 focus:ring-red-500`} // Red for destructive action
+                                className={`${buttonClasses} bg-red-600 hover:bg-red-700 focus:ring-red-500`}
                             >
                                 {isDisabling2FA ? 'Disabling...' : 'Confirm Disable'}
                             </button>
@@ -213,7 +205,6 @@ function ProfilePage() {
                 )}
             </div>
          ) : (
-            // If 2FA is not enabled (setup component and dismiss button)
             <>
                 <TwoFactorAuthSetup onSetupComplete={handle2FASetupComplete} />
                 <div className="mt-4 pt-4 border-t border-gray-100 text-center">

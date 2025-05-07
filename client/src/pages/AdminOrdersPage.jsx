@@ -1,21 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom'; // For linking to individual order details
-import { useAuth } from '../context/AuthContext'; // To get the token for API calls
+import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 function AdminOrdersPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const { token } = useAuth(); // Get token for authenticated API requests
+  const { token } = useAuth();
 
-  // Fetch all orders
   const fetchAllOrders = useCallback(async () => {
     if (!token) {
       setError("Authentication token not found. Admin access required.");
       setLoading(false);
       return;
     }
-    console.log("AdminOrdersPage: Fetching all orders for admin...");
     setLoading(true);
     setError(null);
     try {
@@ -30,7 +28,6 @@ function AdminOrdersPage() {
       if (!response.ok) {
         throw new Error(data.error || `Failed to fetch orders: ${response.status}`);
       }
-      console.log("AdminOrdersPage: All orders fetched successfully:", data.length);
       setOrders(data);
     } catch (err) {
       console.error("AdminOrdersPage: Error fetching all orders:", err);
@@ -45,7 +42,7 @@ function AdminOrdersPage() {
     fetchAllOrders();
   }, [fetchAllOrders]);
 
-  // Helper function to format date/time
+  // Helper
   const formatDateTime = (isoString) => {
     if (!isoString) return 'N/A';
     try {
@@ -53,13 +50,9 @@ function AdminOrdersPage() {
           year: 'numeric', month: 'short', day: 'numeric',
           hour: '2-digit', minute: '2-digit'
       });
-    } catch (e) { return isoString; }
-  };
-
-  // Placeholder for status update logic
-  const handleUpdateStatus = (orderId, newStatus) => {
-    console.log(`TODO: Implement update status for Order ID: ${orderId} to status: ${newStatus}`);
-    // This would involve a PUT request to a new admin API endpoint
+    } catch (err) {
+      return isoString || err; 
+    }
   };
 
   // --- Render Logic ---
@@ -99,19 +92,15 @@ function AdminOrdersPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${Number(order.total_amount).toFixed(2)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {/* TODO: Make status editable later */}
                     {order.status}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                    {/* TODO: Link to a specific Admin Order Detail page later */}
                     <Link
-                      to={`/admin/orders/${order.order_id}`} // Placeholder for admin order detail route
+                      to={`/admin/orders/${order.order_id}`}
                       className="text-indigo-600 hover:text-indigo-900"
                     >
                       View
                     </Link>
-                    {/* Placeholder for status update trigger */}
-                    {/* <button onClick={() => handleUpdateStatus(order.order_id, 'Shipped')} className="text-green-600 hover:text-green-900">Mark Shipped</button> */}
                   </td>
                 </tr>
               ))}

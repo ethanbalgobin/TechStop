@@ -1,21 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-// Import useAuth to get the token for the API call
 import { useAuth } from '../context/AuthContext';
 
 function OrderDetailPage() {
-  // Get the orderId from the URL parameter
   const { orderId } = useParams();
 
-  // State for the detailed order data, loading, and errors
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  // Get token from AuthContext
   const { token } = useAuth();
 
-  // --- Helper function to format date/time ---
   const formatDateTime = (isoString) => {
     if (!isoString) return 'N/A';
     try {
@@ -23,10 +17,12 @@ function OrderDetailPage() {
           year: 'numeric', month: 'short', day: 'numeric',
           hour: '2-digit', minute: '2-digit'
       });
-    } catch (e) { return isoString; }
+    } catch (err) {
+      return isoString || err ;
+    }
   };
 
-  // --- Effect to fetch order details ---
+  // --- Fetch order details ---
   useEffect(() => {
     if (!orderId) {
       setError("Order ID not found in URL.");
@@ -34,7 +30,7 @@ function OrderDetailPage() {
       return;
     }
     if (!token) {
-      setError("Not authenticated."); // Should be caught by ProtectedRoute
+      setError("Not authenticated.");
       setLoading(false);
       return;
     }
@@ -70,7 +66,7 @@ function OrderDetailPage() {
       setLoading(false);
     });
 
-  }, [orderId, token]); // Dependencies
+  }, [orderId, token]);
 
   // --- Render Logic ---
   if (loading) {
@@ -87,9 +83,7 @@ function OrderDetailPage() {
     return <div className="text-center text-gray-500 py-10">Order not found or unable to load.</div>;
   }
 
-  // Display order details if successfully loaded
   return (
-    // Page container
     <div className="container mx-auto px-4 py-8">
       {/* Back link */}
       <Link
@@ -151,9 +145,6 @@ function OrderDetailPage() {
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Shipping Address</h2>
           {order.shippingAddress ? (
             <div className="text-sm text-gray-700 space-y-1">
-              {/* Fetching user's name from order details might require joining tables or separate fetch */}
-              {/* Or display name from address table if stored there */}
-              {/* <p className="font-medium text-gray-900">{order.shipping_full_name || 'N/A'}</p> */}
               <p>{order.shippingAddress.address_line1}</p>
               {order.shippingAddress.address_line2 && <p>{order.shippingAddress.address_line2}</p>}
               <p>{order.shippingAddress.city}, {order.shippingAddress.state_province_region || ''}</p>

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../context/AuthContext'; // To get the token for API calls
+import { useAuth } from '../context/AuthContext';
 
-// --- Reusable Category Form Component ---
 function CategoryForm({ initialData = {}, onSubmit, onCancel, isLoading, formError }) {
   const [name, setName] = useState(initialData.name || '');
   const [description, setDescription] = useState(initialData.description || '');
@@ -13,8 +12,8 @@ function CategoryForm({ initialData = {}, onSubmit, onCancel, isLoading, formErr
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!name.trim()) { // Basic validation for name
-        alert("Category name cannot be empty."); // Simple alert for now
+    if (!name.trim()) { 
+        alert("Category name cannot be empty.");
         return;
     }
     onSubmit({ name, description });
@@ -55,32 +54,32 @@ function CategoryForm({ initialData = {}, onSubmit, onCancel, isLoading, formErr
   );
 }
 
-// --- Main Admin Categories Page Component ---
 function AdminCategoriesPage() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null); // For page-level errors
+  const [error, setError] = useState(null);
   const { token } = useAuth();
 
   const [showForm, setShowForm] = useState(false);
-  const [editingCategory, setEditingCategory] = useState(null); // null for Add, category object for Edit
-  const [formError, setFormError] = useState(''); // For form-specific errors
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [formError, setFormError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [categoryToDelete, setCategoryToDelete] = useState(null); // Store {id, name}
+  const [categoryToDelete, setCategoryToDelete] = useState(null);
   const [deleteConfirmChecked, setDeleteConfirmChecked] = useState(false);
 
-  // --- Fetch Categories ---
   const fetchCategories = useCallback(async () => {
     if (!token) { setError("Authentication token not found."); setLoading(false); return; }
-    console.log("AdminCategoriesPage: Fetching all categories...");
+    console.log("AdminCategoriesPage: Fetching categories...");
     setLoading(true); setError(null);
     try {
       const response = await fetch('/api/admin/categories', { headers: { 'Authorization': `Bearer ${token}` } });
       const data = await response.json();
-      if (!response.ok) { throw new Error(data.error || `Failed to fetch categories: ${response.status}`); }
-      console.log("AdminCategoriesPage: Categories fetched successfully:", data.length);
+      if (!response.ok) {
+        throw new Error(data.error || `Failed to fetch categories: ${response.status}`); 
+      }
+      console.log("AdminCategoriesPage: Categories fetched:", data.length);
       setCategories(data);
     } catch (err) { console.error("AdminCategoriesPage: Error fetching categories:", err); setError(err.message); setCategories([]);
     } finally { setLoading(false); }
@@ -90,12 +89,11 @@ function AdminCategoriesPage() {
     fetchCategories();
   }, [fetchCategories]);
 
-  // --- Form Handlers ---
   const handleShowAddForm = () => { setEditingCategory(null); setFormError(''); setShowForm(true); };
   const handleShowEditForm = (category) => { setEditingCategory(category); setFormError(''); setShowForm(true); };
   const handleCancelForm = () => { setShowForm(false); setEditingCategory(null); setFormError(''); };
 
-  // --- Submit Add/Edit Category ---
+
   const handleFormSubmit = async (categoryData) => {
     setIsSubmitting(true); setFormError('');
     const isEditing = !!editingCategory;
@@ -109,19 +107,25 @@ function AdminCategoriesPage() {
         body: JSON.stringify(categoryData),
       });
       const result = await response.json();
-      if (!response.ok) { throw new Error(result.error || `Failed to ${isEditing ? 'update' : 'add'} category.`); }
+      if (!response.ok) {
+        throw new Error(result.error || `Failed to ${isEditing ? 'update' : 'add'} category.`); 
+      }
       console.log(`Category ${isEditing ? 'updated' : 'added'} successfully:`, result);
       setShowForm(false); setEditingCategory(null); fetchCategories(); // Refresh list
-    } catch (err) { console.error(`Error ${isEditing ? 'updating' : 'adding'} category:`, err); setFormError(err.message || `An error occurred.`);
-    } finally { setIsSubmitting(false); }
+    } catch (err) {
+       console.error(`Error ${isEditing ? 'updating' : 'adding'} category:`, err); 
+       setFormError(err.message || `An error occurred.`);
+    } finally { 
+      setIsSubmitting(false); 
+    }
   };
 
-  // --- Delete Handlers ---
+
   const handleDeleteCategory = (categoryId, categoryName) => {
     setCategoryToDelete({ id: categoryId, name: categoryName });
     setDeleteConfirmChecked(false);
     setShowDeleteConfirm(true);
-    setError(''); // Clear main page errors
+    setError('');
   };
   const handleConfirmDelete = async () => {
     if (!categoryToDelete || !deleteConfirmChecked) return;
@@ -131,22 +135,30 @@ function AdminCategoriesPage() {
         method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` },
       });
       const result = await response.json();
-      if (!response.ok) { throw new Error(result.error || `Failed to delete category: ${response.status}`); }
+      if (!response.ok) {
+         throw new Error(result.error || `Failed to delete category: ${response.status}`); 
+        }
       console.log(`Category ID: ${categoryToDelete.id} deleted successfully.`);
-      setShowDeleteConfirm(false); setCategoryToDelete(null); fetchCategories(); // Refresh list
-    } catch (err) { console.error(`Error deleting category ID ${categoryToDelete.id}:`, err); setError(err.message || 'Could not delete category.'); setShowDeleteConfirm(false); setCategoryToDelete(null);
-    } finally { setIsSubmitting(false); }
+      setShowDeleteConfirm(false); setCategoryToDelete(null); fetchCategories();
+    } catch (err) {
+      console.error(`Error deleting category ID ${categoryToDelete.id}:`, err); 
+      setError(err.message || 'Could not delete category.'); setShowDeleteConfirm(false); setCategoryToDelete(null);
+    } finally {
+      setIsSubmitting(false); 
+    }
   };
-  const handleCancelDelete = () => { setShowDeleteConfirm(false); setCategoryToDelete(null); };
+  const handleCancelDelete = () => { 
+    setShowDeleteConfirm(false); setCategoryToDelete(null); 
+  };
 
-  // --- Styling Classes for Delete Confirmation ---
+
   const deleteButtonClasses = "px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed";
   const secondaryButtonClassesDelete = "px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"; // Renamed to avoid conflict
   const checkboxLabelClasses = "ml-2 block text-sm text-gray-900";
   const checkboxClasses = "h-4 w-4 text-red-600 border-gray-300 rounded focus:ring-red-500";
 
 
-  // --- Render Logic ---
+  // Render Logic
   if (loading) { return <div className="text-center text-gray-500 py-10">Loading categories...</div>; }
   // Show primary error if category fetch failed and no categories are loaded
   if (error && categories.length === 0 && !error.includes('categories')) {
@@ -162,10 +174,10 @@ function AdminCategoriesPage() {
         </button>
       </div>
 
-      {/* Display general page errors (like delete errors) */}
+      {/* General page errors */}
       {error && <div className="text-center text-red-600 bg-red-100 p-3 rounded-md mb-4">Error: {error}</div>}
 
-      {categories.length === 0 && !loading ? ( // Show message if loading done but no categories
+      {categories.length === 0 && !loading ? (
         <p className="text-gray-500">No categories found. Add some!</p>
       ) : (
         <div className="shadow-md rounded-lg overflow-x-auto border border-gray-200">
@@ -210,15 +222,15 @@ function AdminCategoriesPage() {
       {/* --- Conditional rendering for Add/Edit Form --- */}
       {showForm && (
         <CategoryForm
-          initialData={editingCategory || {}} // Pass empty object for Add, category data for Edit
+          initialData={editingCategory || {}}
           onSubmit={handleFormSubmit}
           onCancel={handleCancelForm}
           isLoading={isSubmitting}
-          formError={formError} // Pass form-specific error
+          formError={formError}
         />
       )}
 
-      {/* --- COMPLETED: Conditional rendering for Delete Confirmation Dialog --- */}
+      {/* --- Conditional rendering for Delete Confirmation --- */}
       {showDeleteConfirm && categoryToDelete && (
          <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">

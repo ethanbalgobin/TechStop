@@ -7,36 +7,27 @@ function LoginPage() {
 
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
-
-  // --- State for 2FA step ---
-  const [totpCode, setTotpCode] = useState(''); // Input for the 2FA code
-  const [requires2FA, setRequires2FA] = useState(false); // Flag to show 2FA input
-  const [pendingUserId, setPendingUserId] = useState(null); // Store userId between steps
-  // --- End State ---
-
-  // Other state
+  const [totpCode, setTotpCode] = useState('');
+  const [requires2FA, setRequires2FA] = useState(false);
+  const [pendingUserId, setPendingUserId] = useState(null); 
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-
-  // Hooks
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-
-  // Redirect path after successful login
   const from = location.state?.from?.pathname || "/profile";
 
-  // --- Handler for initial Email/Password Submission ---
+
   const handlePasswordSubmit = async (event) => {
     event.preventDefault();
     setIsLoading(true);
     setError('');
-    setRequires2FA(false); // Reset 2FA flag on new attempt
+    setRequires2FA(false); 
     setPendingUserId(null);
     setTotpCode('');
 
     try {
-      const response = await fetch('/api/auth/login', { // Step 1: Password check
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: emailInput, password: passwordInput }),
@@ -50,27 +41,26 @@ function LoginPage() {
 
       // --- Check response from backend ---
       if (data.requires2FA && data.userId) {
-        // 2FA is required! Update state to show 2FA input
+        // 2FA required
         console.log("LoginPage: 2FA required for user ID:", data.userId);
         setRequires2FA(true);
         setPendingUserId(data.userId);
-        setPasswordInput(''); // Clear password field for security
-        setError(''); // Clear any previous errors
+        setPasswordInput('');
+        setError('');
       } else if (data.token && data.user) {
-        // Login successful (no 2FA or already verified), proceed 
+        // Login successful (no 2FA or already verified)
         console.log('LoginPage: Login successful (no 2FA needed)', data);
-        login(data.token, data.user); // Update global state via context
+        login(data.token, data.user);
         console.log(`LoginPage: Navigating to ${from}`);
         navigate(from, { replace: true });
       } else {
-        // Unexpected response from backend
         throw new Error('Invalid response received from server during login.');
       }
 
     } catch (err) {
       console.error('LoginPage: Password submission error:', err);
       setError(err.message || 'Login failed. Please check credentials or server connection.');
-      setRequires2FA(false); // Ensure 2FA form isn't shown on error
+      setRequires2FA(false);
       setPendingUserId(null);
     } finally {
       setIsLoading(false);
@@ -90,12 +80,12 @@ function LoginPage() {
         setRequires2FA(false);
         setPendingUserId(null);
         setTotpCode('');
-        setEmailInput(''); // Clear email
+        setEmailInput(''); 
         return;
     }
 
     try {
-        const response = await fetch('/api/auth/verify-2fa', { // Step 2: 2FA code check
+        const response = await fetch('/api/auth/verify-2fa', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId: pendingUserId, totpCode: totpCode }),
@@ -107,8 +97,6 @@ function LoginPage() {
             // Specific error for invalid code vs other errors
             throw new Error(data.error || `2FA verification failed: ${response.status}`);
         }
-
-        // 2FA successful, backend sends back token and user data
         if (login && data.token && data.user) {
             console.log('LoginPage: 2FA successful, logging in.', data);
             login(data.token, data.user); // Update global state
@@ -121,7 +109,6 @@ function LoginPage() {
     } catch (err) {
         console.error('LoginPage: 2FA submission error:', err);
         setError(err.message || 'Failed to verify 2FA code.');
-        // Keep 2FA input visible for retry, but clear code
         setTotpCode('');
     } finally {
         setIsLoading(false);
@@ -138,11 +125,8 @@ function LoginPage() {
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-150px)]">
       <div className="w-full max-w-md p-8 space-y-6 bg-white shadow-md rounded-lg">
         <h1 className="text-2xl font-bold text-center text-gray-900">
-          {/* --- Update heading based on state --- */}
           {requires2FA ? 'Enter Verification Code' : 'Login to TechStop'}
         </h1>
-
-        {/* -- Conditionally render forms based on 'requires2FA' state --- */}
         {!requires2FA ? (
           // --- Password Form ---
           <form onSubmit={handlePasswordSubmit} className="space-y-6">
@@ -201,8 +185,6 @@ function LoginPage() {
             </button>
           </form>
         )}
-
-        {/* Link to Registration Page (only show if not in 2FA step) */}
         {!requires2FA && (
           <p className="mt-4 text-center text-sm text-gray-600">
             Don't have an account?{' '}

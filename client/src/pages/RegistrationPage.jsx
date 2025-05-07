@@ -1,24 +1,17 @@
-// client/src/pages/RegistrationPage.jsx
-
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 
 function RegistrationPage() {
-  // State for form inputs
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  // State for 2FA setup choice
-  const [setup2FA, setSetup2FA] = useState(false); // Checkbox state
-
-  // State for loading and errors/success
+  const [setup2FA, setSetup2FA] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-
-  const navigate = useNavigate(); // Hook for navigation
+  const navigate = useNavigate(); 
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -48,17 +41,14 @@ function RegistrationPage() {
         throw new Error(data.error || `Registration failed: ${response.status}`);
       }
 
-      // --- Registration Success ---
       console.log('Registration successful:', data);
       setSuccessMessage('Registration successful! Redirecting...');
       setUsername(''); setEmail(''); setPassword('');
       setFirstName(''); setLastName('');
-
-      // Navigate based on 2FA choice
       setTimeout(() => {
         if (setup2FA) {
           console.log("Redirecting to profile for 2FA setup (will require login).");
-          navigate('/profile'); // ProtectedRoute will handle redirect to login if needed
+          navigate('/profile');
         } else {
           console.log("Redirecting to login.");
           navigate('/login');
@@ -73,7 +63,6 @@ function RegistrationPage() {
     }
   };
 
-  // Styling classes
   const inputClasses = "appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm";
   const labelClasses = "block text-sm font-medium text-gray-700 mb-1";
   const checkboxLabelClasses = "ml-2 block text-sm text-gray-900";
@@ -109,9 +98,6 @@ function RegistrationPage() {
             <label htmlFor="reg-lastname" className={labelClasses}>Last Name <span className="text-gray-500">(Optional)</span></label>
             <input type="text" id="reg-lastname" value={lastName} onChange={(e) => setLastName(e.target.value)} disabled={isLoading} className={inputClasses} />
           </div>
-
-          {/* --- VERIFY THIS SECTION IS PRESENT AND CORRECTLY PLACED --- */}
-          {/* 2FA Setup Checkbox */}
           <div className="flex items-center pt-2">
             <input
               id="setup-2fa"
@@ -126,14 +112,8 @@ function RegistrationPage() {
               Enable Two-Factor Authentication now (Recommended)
             </label>
           </div>
-          {/* --- END 2FA CHECKBOX SECTION --- */}
-
-
-          {/* Display Success or Error Messages */}
           {successMessage && <p className="text-sm text-green-600 text-center font-medium">{successMessage}</p>}
           {error && <p className="text-sm text-red-600 text-center font-medium">{error}</p>}
-
-          {/* Submit Button */}
           <div>
             <button
               type="submit"
