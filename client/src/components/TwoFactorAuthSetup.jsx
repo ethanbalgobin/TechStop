@@ -1,26 +1,26 @@
 import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext'; // Token
+import { useAuth } from '../context/AuthContext';
 
 function TwoFactorAuthSetup({ onSetupComplete }) {
-  const { token } = useAuth(); // Get token for API calls
+  const { token } = useAuth(); 
 
-  // State for the setup process
+  // States for the setup process
   const [qrCodeUrl, setQrCodeUrl] = useState('');
-  const [secret, setSecret] = useState(''); // Temp secret from backend
+  const [secret, setSecret] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [setupStarted, setSetupStarted] = useState(false);
 
-  // 1. Generate Secret and QR Code
+
   const handleGenerateSecret = async () => {
     setIsLoading(true);
     setError('');
     setMessage('');
     setQrCodeUrl('');
     setSecret('');
-    setVerificationCode(''); // Clear previous code input
+    setVerificationCode('');
 
     try {
       const response = await fetch('/api/auth/2fa/generate', {
@@ -34,8 +34,8 @@ function TwoFactorAuthSetup({ onSetupComplete }) {
       if (!response.ok) {
         throw new Error(data.error || 'Failed to generate 2FA secret.');
       }
-      setSecret(data.secret); // Store the temporary base32 secret
-      setQrCodeUrl(data.qrCodeUrl); // Store the QR code image data URL
+      setSecret(data.secret); // base32 secret
+      setQrCodeUrl(data.qrCodeUrl);
       setSetupStarted(true); // Show the verification step
       setMessage('Scan the QR code with your authenticator app and enter the code below.');
     } catch (err) {
@@ -49,7 +49,7 @@ function TwoFactorAuthSetup({ onSetupComplete }) {
 
   // 2. Verify Code and Enable 2FA
   const handleVerifyCode = async (event) => {
-    event.preventDefault(); // Prevent form submission if wrapped in form
+    event.preventDefault();
     if (!verificationCode || !secret) {
       setError('Please enter the code from your authenticator app.');
       return;
@@ -65,7 +65,7 @@ function TwoFactorAuthSetup({ onSetupComplete }) {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ token: verificationCode, secret: secret }), // Send code and temp secret
+        body: JSON.stringify({ token: verificationCode, secret: secret }),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -74,16 +74,13 @@ function TwoFactorAuthSetup({ onSetupComplete }) {
 
       // Verification successful
       setMessage('2FA enabled successfully!');
-      setQrCodeUrl(''); // Clear QR code/secret
+      setQrCodeUrl('');
       setSecret('');
       setVerificationCode('');
       setSetupStarted(false);
-      // Callback prop call to notify the parent (ProfilePage) that setup is done
       if (onSetupComplete) {
         onSetupComplete();
       }
-
-      // TODO: Potentially show recovery codes here - this will require backend changes
 
     } catch (err) {
       console.error("Error verifying 2FA code:", err);
@@ -93,10 +90,10 @@ function TwoFactorAuthSetup({ onSetupComplete }) {
     }
   };
 
-  // --- Styling Classes (Apply Tailwind) ---
+  // --- Tailwind Classes) ---
   const inputClasses = "appearance-none block w-full max-w-xs mx-auto px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm";
   const buttonClasses = "px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50";
-  const secondaryButtonClasses = "px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50";
+  // const secondaryButtonClasses = "px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50";
 
 
   return (
@@ -140,8 +137,8 @@ function TwoFactorAuthSetup({ onSetupComplete }) {
               value={verificationCode}
               onChange={(e) => setVerificationCode(e.target.value)}
               required
-              maxLength="6" // TOTP codes are usually 6 digits
-              pattern="\d{6}" // Basic pattern for 6 digits
+              maxLength="6"
+              pattern="\d{6}"
               title="Enter the 6-digit code from your authenticator app"
               disabled={isLoading}
               className={inputClasses}
@@ -149,7 +146,7 @@ function TwoFactorAuthSetup({ onSetupComplete }) {
             />
             <button
               type="submit"
-              disabled={isLoading || verificationCode.length !== 6} // Disable if code length isn't 6
+              disabled={isLoading || verificationCode.length !== 6}
               className={`${buttonClasses} inline-flex justify-center w-full max-w-xs mx-auto`}
             >
               {isLoading ? 'Verifying...' : 'Verify & Enable 2FA'}
@@ -158,7 +155,6 @@ function TwoFactorAuthSetup({ onSetupComplete }) {
         </div>
       )}
 
-      {/* Display Status Messages */}
       {message && <p className="mt-4 text-sm text-green-600">{message}</p>}
       {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
     </div>

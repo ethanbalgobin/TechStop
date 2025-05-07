@@ -1,14 +1,10 @@
 import React from 'react';
-// Import NavLink instead of Link
-import { NavLink, Link, useNavigate } from 'react-router-dom'; // Keep Link for Brand as it does not need active styling
-// Import hooks to access context
+import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext'; 
 import { useCart } from '../context/CartContext'; 
 
 function NavBar() {
-  // Get auth state and functions from context
   const { token, logout, isAdmin, show2FAReminder } = useAuth();
-  // Get cart count from CartContext
   const { cartCount } = useCart();
   const navigate = useNavigate();
 
@@ -17,14 +13,13 @@ function NavBar() {
     navigate('/login');
   };
 
-  // --- Define base and active link styles using Tailwind ---
+  // Tailwind Classes
   const baseLinkClasses = "text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium relative inline-block";
-  const activeLinkClasses = "font-semibold text-green-600"; // Example: Bold and green for active
+  const activeLinkClasses = "font-semibold text-green-600";
   const cartLinkClasses = "text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium mr-2";
   const buttonStyle = "ml-3 inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500";
   const primaryButtonStyle = "ml-3 inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500";
-  const adminLinkClasses = "px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"; // Example: Indigo button
-  // Style for the reminder dot
+  const adminLinkClasses = "px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500";
   const reminderDotStyle = {
       position: 'absolute',
       top: '5px',
@@ -34,12 +29,9 @@ function NavBar() {
       backgroundColor: 'red',
       borderRadius: '50%',
   };
-  // --- End Styles ---
 
-  // --- Function to determine NavLink className ---
-  // Ensures base classes are always applied, adds active classes conditionally
   const getNavLinkClass = ({ isActive }) => {
-    return `${baseLinkClasses} ${isActive ? activeLinkClasses : ''}`.trim(); // Used trim() to remove extra space
+    return `${baseLinkClasses} ${isActive ? activeLinkClasses : ''}`.trim();
   };
 
 
@@ -50,7 +42,6 @@ function NavBar() {
 
         {/* Left side links */}
         <div className="flex items-center space-x-2 sm:space-x-4 flex-1 justify-start">
-          {/* Use NavLink */}
           <NavLink to="/" className={getNavLinkClass} end> {/* 'end' prop ensures exact match for root path */}
             Home
           </NavLink>
@@ -61,7 +52,6 @@ function NavBar() {
 
         {/* Center Brand Name */}
         <div className="flex-shrink-0">
-           {/* Using standard Link for brand is fine */}
            <Link to="/" className="font-semibold text-lg text-gray-800 hover:text-gray-900">
              TechStop
            </Link>
@@ -69,7 +59,6 @@ function NavBar() {
 
         {/* Right side links/buttons */}
         <div className="flex items-center space-x-2 sm:space-x-4 flex-1 justify-end">
-          {/* Use NavLink for Cart */}
           <NavLink to="/cart" className={({ isActive }) => `${cartLinkClasses} ${isActive ? activeLinkClasses : ''}`.trim()}>
             Cart ({cartCount !== undefined ? cartCount : 0})
           </NavLink>
@@ -77,7 +66,6 @@ function NavBar() {
           {token ? (
             // If logged in
             <> {/* Use Fragment */}
-              {/* Use NavLink */}
               <NavLink to="/orders" className={getNavLinkClass}>
                 Orders
               </NavLink>
@@ -95,13 +83,11 @@ function NavBar() {
                   Manage
                 </NavLink>
               )}
-              {/* Logout Button */}
               <button onClick={onLogoutClick} className={buttonStyle}>Logout</button>
             </>
           ) : (
             // If logged out
             <> {/* Use Fragment */}
-              {/* Use NavLink */}
               <NavLink to="/login" className={getNavLinkClass}>
                 Login
               </NavLink>
@@ -113,10 +99,10 @@ function NavBar() {
               </NavLink>
             </>
           )}
-        </div> {/* Right side div */}
-      </div> {/* Main flex div */}
-    </nav> // Close nav
-  ); // Close return
-} // Close function NavBar
+        </div> 
+      </div> 
+    </nav> 
+  ); 
+}
 
 export default NavBar;
