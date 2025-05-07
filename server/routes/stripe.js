@@ -56,7 +56,7 @@ router.post('/create-payment-intent', authenticateToken, async (req, res) => {
 });
 
 
-// Stripe Webhook Handler
+// Stripe Webhook Handlers
 router.post('/stripe-webhooks', async (req, res) => {
 
     console.log('[Webhook Router] Received event.');
@@ -100,9 +100,36 @@ router.post('/stripe-webhooks', async (req, res) => {
                 return res.status(500).send('Webhook Error: Database update failed.'); // retry
             }
             break;
+
+        // Payment Failure
         case 'payment_intent.payment_failed':
             const paymentIntentFailed = event.data.object;
-            console.log(`[Webhook Router] PaymentIntent failed: ${paymentIntentFailed.id}`, paymentIntentFailed.last_payment_error?.message);
+            const failedPaymentIntentId = paymentIntentFailed.id;
+            const failureReason = paymentIntentFailed.last_payment_error?.message;
+            console.log(`[Webhook Router] PaymentIntent failed: ${failedPaymentIntentId}. Reason: ${failureReason}`);
+            try {
+                 const updateFailedOrderQuery = `
+                    UPDATE orders
+                    SET status = $1, updated_at = CURRENT_TIMESTAMP
+                    WHERE payment_intent_id = $2
+                    RETURNING id, status;
+                `;
+                const failedStatus = 'Payment Failed';
+                const { rowCount: failedRowCount } = await pool.query(updateFailedOrderQuery, [failedStatus, failedPaymentIntentId]);
+
+                if (failedRowCount > 0) {
+                     console.log(`
+                        [Webhook Router] Order ID associated with failed PaymentIntent ${failedPaymentIntentId} status updated to '${failedStatus}'`);
+                } else {
+                    console.warn(`[Webhook Router] No order found for failed PaymentIntent ${failedPaymentIntentId}.`);
+                }
+                 // TODO: Trigger failure email (future implementation)
+
+            } catch (dbError) {
+                 console.error(`[Webhook Router] ❌ Database error handling failed PaymentIntent ${failedPaymentIntentId}:`, dbError.stack);
+                 // still return 200 'success' to stripe as retying will not fix the db error
+                 return res.status(500).send('Webhook Error: Database update failed for payment failure.');
+            }
             break;
         default:
             console.log(`[Webhook Router] Unhandled event type ${event.type}`);
