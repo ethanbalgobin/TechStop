@@ -35,6 +35,14 @@ function AdminDashboardPage() {
             Manage Orders
           </Link>
         </div>
+        <div>
+        <Link
+          to="/admin/users"
+          className="inline-block px-6 py-3 text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+        >
+          Manage Users
+        </Link>
+        </div>
       </div>
     </div>
   );

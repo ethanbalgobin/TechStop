@@ -19,6 +19,7 @@ import AdminProductsPage from './pages/AdminProductsPage';
 import AdminCategoriesPage from './pages/AdminCategoriesPage';
 import AdminOrdersPage from './pages/AdminOrdersPage';
 import AdminOrderDetailPage from './pages/AdminOrderDetailPage';
+import AdminUsersPage from './pages/AdminUsersPage';
 
 // Utility Components
 import NavBar from './components/NavBar';
@@ -108,6 +109,14 @@ function App() {
             element={
               <AdminProtectedRoute>
                 <AdminOrderDetailPage />
+              </AdminProtectedRoute>
+            }
+          />
+          <Route
+            path="admin/users"
+            element={
+              <AdminProtectedRoute>
+                <AdminUsersPage />
               </AdminProtectedRoute>
             }
           />
