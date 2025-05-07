@@ -4,10 +4,8 @@ function authenticateToken(req, res, next) {
   
   // token from authHeader
     const authHeader = req.headers['authorization']; 
-    console.log(`[Auth Middleware] Authorization header value: ${authHeader}`);
   
     const token = authHeader && authHeader.split(' ')[1]; 
-    console.log(`[Auth Middleware] Extracted token: ${token}`); 
   
     if (token == null) {
       console.log('[Auth Middleware] Token is null or undefined: 401.');
