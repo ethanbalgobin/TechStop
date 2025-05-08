@@ -51,35 +51,76 @@ This is a full-stack e-commerce application featuring a React frontend and a Nod
 
 ## Project Structure
 ```bash
-ecommerce-app/
-├── client/         # React Frontend (Vite)
-│   ├── public/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── NavBar.jsx
-│   │   │   └── ProtectedRoute.jsx
-│   │   ├── pages/
-│   │   │   ├── HomePage.jsx
-│   │   │   ├── LoginPage.jsx
-│   │   │   ├── NotFoundPage.jsx
-│   │   │   ├── ProductsPage.jsx
-│   │   │   └── ProfilePage.jsx
-│   │   ├── App.jsx
-│   │   ├── main.jsx
-│   │   └── index.css
-│   ├── .eslintrc.cjs
-│   ├── index.html
-│   ├── package.json
-│   ├── vite.config.js
-│   └── yarn.lock
-│
-└── server/         # Node.js Backend (Express)
-    ├── middleware/
-    │   └── authenticateToken.js
-    ├── .env        # Environment variables
-    ├── db.js       # Database connection pool setup
+├── client
+│   ├── eslint.config.js
+│   ├── favicon.png
+│   ├── index.html
+│   ├── package.json
+│   ├── postcss.config.cjs
+│   ├── public
+│   │   └── vite.svg
+│   ├── src
+│   │   ├── App.css
+│   │   ├── App.jsx
+│   │   ├── assets
+│   │   │   └── react.svg
+│   │   ├── components
+│   │   │   ├── AdminProtectedRoute.jsx
+│   │   │   ├── NavBar.jsx
+│   │   │   ├── ProtectedRoute.jsx
+│   │   │   └── TwoFactorAuthSetup.jsx
+│   │   ├── constants
+│   │   │   └── countries.js
+│   │   ├── context
+│   │   │   ├── authContext.jsx
+│   │   │   └── CartContext.jsx
+│   │   ├── index.css
+│   │   ├── main.jsx
+│   │   ├── output.css
+│   │   └── pages
+│   │       ├── AdminCategoriesPage.jsx
+│   │       ├── AdminDashboardPage.jsx
+│   │       ├── AdminOrderDetailPage.jsx
+│   │       ├── AdminOrdersPage.jsx
+│   │       ├── AdminProductsPage.jsx
+│   │       ├── AdminUsersPage.jsx
+│   │       ├── CartPage.jsx
+│   │       ├── CheckoutPage.jsx
+│   │       ├── HomePage.jsx
+│   │       ├── LoginPage.jsx
+│   │       ├── NotFoundPage.jsx
+│   │       ├── OrderDetailPage.jsx
+│   │       ├── OrderHistoryPage.jsx
+│   │       ├── OrderSuccessPage.jsx
+│   │       ├── ProductDetailPage.jsx
+│   │       ├── ProductsPage.jsx
+│   │       ├── ProfilePage.jsx
+│   │       └── RegistrationPage.jsx
+│   ├── tailwind.config.js
+│   ├── vite.config.js
+│   └── yarn.lock
+├── LICENSE
+├── package.json
+├── README.md
+└── server
+    ├── database
+    │   ├── roles.sql
+    │   └── schema.sql
+    ├── db.js
+    ├── middleware
+    │   ├── authenticateAdmin.js
+    │   └── authenticateToken.js
     ├── package.json
-    ├── server.js   # Main Express server file
+    ├── routes
+    │   ├── admin.js
+    │   ├── auth.js
+    │   ├── cart.js
+    │   ├── orders.js
+    │   ├── products.js
+    │   ├── stripe.js
+    │   └── userRoutes.js
+    ├── seed.js
+    ├── server.js
     └── yarn.lock
 ```
 
@@ -93,9 +134,9 @@ ecommerce-app/
 
 ### Backend Setup:
 1. Navigate to the server directory:
-   ```bash
-   cd server
-   ```
+```bash
+cd server
+  ```
 2. Install dependencies
  ```bash
  yarn install
@@ -103,6 +144,7 @@ ecommerce-app/
 3. Create a ```.env``` file in the server directory.
 4. Add your PostgreSQL connection string and a JWT secret to ```.env```:
 ```
+# DB
 DATABASE_URL=Your_DB_user
 DB_PASSWORD=Your_DB_Password
 DB_HOST=Your_DB_Host
@@ -110,8 +152,13 @@ DB_PORT:Your_DB_Port (5432 default)
 DB_DATABASE:Yout_DB_name
 JWT_SECRET=your_super_secret_jwt_key_here_make_it_long_and_random
 PORT=5001 # Or your desired backend port
+
+# Stripe Keys
+STRIPE_SECRET_KEY=Your_Stripe_Secret_Key
+STRIPE_WEBHOOK_SECRET=Your_Stripe_WebHook_Secret_Key
+
 ```
-Ensure your PostgreSQL database has the necessary users and products tables set up according to the queries in server.js.
+Ensure your PostgreSQL database has the necessary tables set up according to the queries in server.js.
 This can be found in server>database>schema.sql.
 
 Start the backend server: ```yarn dev``` (if configured) or ```node server.js```
@@ -150,23 +197,18 @@ Access the application in your browser, usually at http://localhost:5173 (check 
 
 ```GET /api/auth/me```: (Protected) Get the logged-in user's profile information.
 
+# Two Factor Authentication
+
+When registering, you will be asked if you would like to set up 2FA now or after logging in. This service is provided via speakeasy and qrcode.
+You can then scan the qrcode with your authenticator app and then use the codes to verify your sessions!
+
+# Admin Options
+
+You can configure any account to be an administrator for the platform. Initially, you will need to do this via a direct modification to the database (using PostBird, psql, etc)
+You can set the is_admin boolean in the table to true, whereby upon logging in with the account you will then see an admin only 'Manage' button!
+
 # Next Steps / TODOs
-Implement the Registration page UI (/register).
-
-Add a link to the Registration page in the NavBar.
-
-Implement redirect after login to the originally intended page (using state from ProtectedRoute).
-
-Refine styling using CSS or a UI library.
-
-Implement Shopping Cart functionality (state, API routes, UI).
-
-Add Product Detail page.
 
 Improve error handling and user feedback.
-
-Consider using React Context or Zustand for global state management (e.g., auth state).
-
-Remove detailed debugging console logs.
 
    
