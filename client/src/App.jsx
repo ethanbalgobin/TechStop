@@ -25,7 +25,7 @@ import ReviewPage from './pages/ReviewPage';
 // Utility Components
 import NavBar from './components/NavBar';
 import ProtectedRoute from './components/ProtectedRoute';
-import AdminProtectedRoute from './components/adminProtectedRoute';
+import AdminProtectedRoute from './components/AdminProtectedRoute';
 
 function App() {
   return (
