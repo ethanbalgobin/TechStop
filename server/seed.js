@@ -2,7 +2,6 @@
 
 const db = require('./db');
 
-// Sample product data
 const sampleProducts = [
     {
         name: 'Macbook Pro M4 2024',
