@@ -9,19 +9,36 @@ const authenticateToken = require('../middleware/authenticateToken');
 const router = express.Router();
 const saltRounds = 10;
 
+// Helper function to execute query with timeout
+const executeQueryWithTimeout = async (client, queryText, values = [], timeout = 5000) => {
+    return Promise.race([
+        client.query(queryText, values),
+        new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Query timeout')), timeout)
+        )
+    ]);
+};
+
 // Auth Routes
 
 // registration
 router.post('/register', async (req, res) => {
     const { username, email, password, first_name, last_name } = req.body;
     console.log('[Auth Router] Registration attempt for:', email);
+    let client;
+    
     if (!username || !email || !password) {
         return res.status(400).json({ error: 'Username, email and password are required.' });
     }
+    
     try {
+        client = await pool.connect();
+        console.log('[Auth Router] Successfully acquired database client');
+
         const checkUserQuery = 'SELECT id FROM users WHERE username = $1 OR email = $2';
-        const { rows: existingRows } = await pool.query(checkUserQuery, [username, email]);
-        if (existingRows.length > 0) {
+        const existingRows = await executeQueryWithTimeout(client, checkUserQuery, [username, email]);
+        
+        if (existingRows.rows.length > 0) {
             return res.status(409).json({ error: 'Username or email already exists.' });
         }
 
@@ -32,20 +49,29 @@ router.post('/register', async (req, res) => {
             RETURNING id, username, email;
         `;
         const values = [username, email, hashedPassword, first_name || null, last_name || null];
-        const result = await pool.query(insertQuery, values);
+        const result = await executeQueryWithTimeout(client, insertQuery, values);
         const newUser = result.rows[0];
+        
         console.log('[Auth Router] User registered successfully:', newUser.email);
         res.status(201).json({
             message: 'User registered successfully!',
             user: { id: newUser.id, username: newUser.username, email: newUser.email }
         });
     } catch(err) {
+        console.error('[Auth Router] Error during registration:', err);
         if(err.code === '23505') {
-            console.error('[Auth Router] Registration Error: Username or email already exists.', err.detail);
             return res.status(409).json({ error: 'Username or email already exists.' });
         }
-        console.error('[Auth Router] Error during registration:', err.stack);
-        res.status(500).json({ error: 'Internal Server Error during registration' });
+        if (err.message === 'Query timeout') {
+            res.status(504).json({ error: 'Database query timed out' });
+        } else {
+            res.status(500).json({ error: 'Internal Server Error during registration' });
+        }
+    } finally {
+        if (client) {
+            client.release();
+            console.log('[Auth Router] Released database client');
+        }
     }
 });
 
@@ -54,17 +80,26 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
     const { email, password } = req.body;
     console.log('[Auth Router] Login attempt for:', email);
+    let client;
+    
     if (!email || !password) {
         return res.status(400).json({ error: 'Email and password are required.' });
     }
+    
     try {
+        client = await pool.connect();
+        console.log('[Auth Router] Successfully acquired database client');
+
         const queryText = 'SELECT id, username, email, password_hash, is_2fa_enabled, is_admin FROM users WHERE email = $1';
-        const result = await pool.query(queryText, [email]);
+        const result = await executeQueryWithTimeout(client, queryText, [email]);
+        
         if (result.rows.length === 0) {
             return res.status(401).json({ error: 'Invalid credentials.' });
         }
+        
         const user = result.rows[0];
         const isMatch = await bcrypt.compare(password, user.password_hash);
+        
         if (!isMatch) {
             return res.status(401).json({ error: 'Invalid credentials.' });
         }
@@ -79,15 +114,24 @@ router.post('/login', async (req, res) => {
             res.status(200).json({
                 message: 'Login Successful!',
                 token: token,
-                user: { // --- MODIFIED: Return full user object needed by context ---
+                user: {
                     id: user.id, username: user.username, email: user.email,
                     is_admin: user.is_admin, is_2fa_enabled: user.is_2fa_enabled
                 }
             });
         }
     } catch (err) {
-        console.error('[Auth Router] Error during login:', err.stack);
-        res.status(500).json({ error: 'Internal Server Error during login.' });
+        console.error('[Auth Router] Error during login:', err);
+        if (err.message === 'Query timeout') {
+            res.status(504).json({ error: 'Database query timed out' });
+        } else {
+            res.status(500).json({ error: 'Internal Server Error during login.' });
+        }
+    } finally {
+        if (client) {
+            client.release();
+            console.log('[Auth Router] Released database client');
+        }
     }
 });
 
