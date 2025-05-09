@@ -20,12 +20,12 @@ COMMENT ON COLUMN users.totp_secret IS 'The secret key used for TOTP generation,
 COMMENT ON COLUMN users.totp_auth_url IS 'The full otpauth:// URL containing the secret, issuer, and user info.';
 
 -- products table
-CREATE TABLE productS(
+CREATE TABLE products(
     id SERIAL PRIMARY KEY,
     name varchar(255) NOT NULL,
     description TEXT,
     price NUMERIC(10, 2) NOT NULL CHECK (price >= 0),
-    stock_quantity INTEGER NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+    stock_quantity INTEGER NOT NULL DEFAULT 0 CHECK (stock_quantity >= 0),
     sku varchar(100) UNIQUE,
     image_url varchar(255),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, 
@@ -97,6 +97,60 @@ CREATE TABLE categories (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+
+-- TODO: Revise these tables and start normalisation.
+CREATE TABLE stock (
+    stock_id SERIAL PRIMARY KEY,
+    sku VARCHAR(100) REFERENCES products(sku) ON DELETE CASCADE,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE UPDATE
+);
+
+
+-- suppliers table
+CREATE TABLE suppliers( 
+    id SERIAL PRIMARY KEY,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE UPDATE,
+    name VARCHAR(255) NOT NULL UNIQUE,
+    address TEXT NOT NULL UNIQUE,
+    contact_number INTEGER NOT NULL UNIQUE,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- reviews
+CREATE TABLE reviews (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+    comment TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, product_id) -- Prevent multiple reviews from the same user for the same product
+);
+
+COMMENT ON COLUMN reviews.rating IS 'Rating on a scale from 1-5 stars';
+COMMENT ON COLUMN reviews.comment IS 'The review text content';
+
+-- warehouses
+CREATE TABLE warehouses(
+    id SERIAL PRIMARY KEY,
+    address TEXT,
+    product_category_stored VARCHAR(255) REFERENCES categories(name) ON DELETE CASCADE
+);
+
+-- vehicles
+CREATE TABLE vehicles (
+    id SERIAL PRIMARY KEY,
+    warehouse_assigned INT REFERENCES warehouses (id) ON CHANGE UPDATE,
+    registration INTEGER NOT NULL,
+    mileage BIGINT NOT NULL DEFAULT 20,
+    date_serviced TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+)
+
+-- End TODO
+
+
 --- INDEXES ---
 
 -- Index for faster lookup by user id
@@ -114,6 +168,10 @@ CREATE INDEX idx_orders_user_id ON orders(user_id);
 -- Index on status for filtering orders
 CREATE INDEX idx_orders_status ON orders(status);
 
+-- Indexes for reviews table
+CREATE INDEX idx_reviews_product_id ON reviews(product_id);
+CREATE INDEX idx_reviews_user_id ON reviews(user_id);
+CREATE INDEX idx_reviews_created_at ON reviews(created_at);
 
 --- FUNCTIONS ---
 
@@ -128,5 +186,11 @@ $$ language 'plpgsql';
 
 CREATE TRIGGER update_cart_items_updated_at
 BEFORE UPDATE ON cart_items
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+
+-- Add trigger for updated_at
+CREATE TRIGGER update_reviews_updated_at
+BEFORE UPDATE ON reviews
 FOR EACH ROW
 EXECUTE FUNCTION update_updated_at_column();
