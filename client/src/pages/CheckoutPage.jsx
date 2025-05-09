@@ -142,7 +142,7 @@ function CheckoutPage() {
     if (token && !isCartLoading && cartItems.length > 0) {
       console.log("CheckoutPage: Attempting to create PaymentIntent...");
       setFormError(''); // Clear previous errors
-      fetch('/api/create-payment-intent', {
+      fetch('/api/stripe/create-payment-intent', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
