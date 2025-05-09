@@ -2,25 +2,25 @@ import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 
 // Page Components
-import HomePage from './pages/HomePage';
-import NotFoundPage from './pages/NotFoundPage';
-import ProductsPage from './pages/ProductsPage';
-import LoginPage from './pages/LoginPage';
-import ProfilePage from './pages/ProfilePage';
-import RegistrationPage from './pages/RegistrationPage';
-import ProductDetailPage from './pages/ProductDetailPage';
-import CartPage from './pages/CartPage';
-import CheckoutPage from './pages/CheckoutPage';
-import OrderSuccessPage from './pages/OrderSuccessPage';
-import OrderHistoryPage from './pages/OrderHistoryPage';
-import OrderDetailPage from './pages/OrderDetailPage';
-import AdminDashboardPage from './pages/AdminDashboardPage';
-import AdminProductsPage from './pages/AdminProductsPage';
-import AdminCategoriesPage from './pages/AdminCategoriesPage';
-import AdminOrdersPage from './pages/AdminOrdersPage';
-import AdminOrderDetailPage from './pages/AdminOrderDetailPage';
-import AdminUsersPage from './pages/AdminUsersPage';
-import ReviewPage from './pages/ReviewPage';
+import HomePage from './pages/HomePage.jsx';
+import NotFoundPage from './pages/NotFoundPage.jsx';
+import ProductsPage from './pages/ProductsPage.jsx';
+import LoginPage from './pages/LoginPage.jsx';
+import ProfilePage from './pages/ProfilePage.jsx';
+import RegistrationPage from './pages/RegistrationPage.jsx';
+import ProductDetailPage from './pages/ProductDetailPage.jsx';
+import CartPage from './pages/CartPage.jsx';
+import CheckoutPage from './pages/CheckoutPage.jsx';
+import OrderSuccessPage from './pages/OrderSuccessPage.jsx';
+import OrderHistoryPage from './pages/OrderHistoryPage.jsx';
+import OrderDetailPage from './pages/OrderDetailPage.jsx';
+import AdminDashboardPage from './pages/AdminDashboardPage.jsx';
+import AdminProductsPage from './pages/AdminProductsPage.jsx';
+import AdminCategoriesPage from './pages/AdminCategoriesPage.jsx';
+import AdminOrdersPage from './pages/AdminOrdersPage.jsx';
+import AdminOrderDetailPage from './pages/AdminOrderDetailPage.jsx';
+import AdminUsersPage from './pages/AdminUsersPage.jsx';
+import ReviewPage from './pages/ReviewPage.jsx';
 
 // Utility Components
 import NavBar from './components/NavBar';
