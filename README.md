@@ -209,6 +209,5 @@ You can set the is_admin boolean in the table to true, whereby upon logging in w
 
 # Next Steps / TODOs
 
-Improve error handling and user feedback.
-
-   
+- Improve error handling and user feedback.
+- Show 2fa recovery codes to the user immediately after they successfully enable 2fa.
