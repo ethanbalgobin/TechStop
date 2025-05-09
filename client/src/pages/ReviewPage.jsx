@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useAuth } from '../context/authContext';
+import { useAuth } from '../context/AuthContext';
 import { API_BASE_URL } from '../constants/api';
 
 function ReviewPage() {
