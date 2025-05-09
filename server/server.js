@@ -14,6 +14,7 @@ const cartRoutes = require('./routes/cart');
 const orderRoutes = require('./routes/orders');
 const adminRoutes = require('./routes/admin');
 const stripeRoutes = require('./routes/stripe'); // Assuming stripe.js contains both intent and webhook
+const reviewRoutes = require('./routes/reviews');
 
 
 const app = express();
@@ -30,6 +31,8 @@ app.post('/api/stripe-webhooks', express.raw({ type: 'application/json' }), (req
 
 app.use(express.json());
 
+// Serve static files from uploads directory
+app.use('/uploads', express.static('uploads'));
 
 // API Route Mounting
 app.use('/api/auth', authRoutes);
@@ -37,7 +40,8 @@ app.use('/api/products', productRoutes);
 app.use('/api/cart', cartRoutes); 
 app.use('/api/orders', orderRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api', stripeRoutes);
+app.use('/api/stripe', stripeRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 
 
