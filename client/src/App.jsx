@@ -20,6 +20,7 @@ import AdminCategoriesPage from './pages/AdminCategoriesPage';
 import AdminOrdersPage from './pages/AdminOrdersPage';
 import AdminOrderDetailPage from './pages/AdminOrderDetailPage';
 import AdminUsersPage from './pages/AdminUsersPage';
+import ReviewPage from './pages/ReviewPage';
 
 // Utility Components
 import NavBar from './components/NavBar';
@@ -39,6 +40,7 @@ function App() {
           <Route path="/register" element={<RegistrationPage />} />
           <Route path="/products" element={<ProductsPage />} />
           <Route path="/products/:productId" element={<ProductDetailPage />} />
+          <Route path="/products/:productId/reviews" element={<ReviewPage />} />
           <Route path="/cart" element={<CartPage />} />
 
           {/* Protected Routes */}
