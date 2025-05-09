@@ -4,6 +4,7 @@ import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext'; 
 import { countryList } from '../constants/countries'; 
 import { loadStripe } from '@stripe/stripe-js';
+import fetchApi from '../utils/api';
 import {
   Elements,
   PaymentElement,
@@ -65,18 +66,15 @@ function CheckoutForm({ shippingDetails }) {
 
         try {
             console.log("CheckoutForm: Sending order data to backend:", orderPayload);
-            const orderResponse = await fetch('/api/orders', {
+            const orderData = await fetchApi('/api/orders', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify(orderPayload)
             });
 
-            const orderData = await orderResponse.json();
-
-            if (!orderResponse.ok) {
+            if (!orderData.ok) {
                 console.error("CRITICAL: Payment succeeded but order creation failed!", orderData.error);
                 setMessage(`Payment completed, but there was an issue saving your order. Please contact support with Payment Intent ID: ${paymentIntent.id}`);
                 clearCart();
@@ -142,28 +140,20 @@ function CheckoutPage() {
     if (token && !isCartLoading && cartItems.length > 0) {
       console.log("CheckoutPage: Attempting to create PaymentIntent...");
       setFormError(''); // Clear previous errors
-      fetch('/api/stripe/create-payment-intent', {
+      fetchApi('/api/stripe/create-payment-intent', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
       })
-      .then(async res => {
-          if (!res.ok) {
-              const errData = await res.json().catch(() => ({}));
-              throw new Error(errData.error || `Failed to create payment intent: ${res.status}`);
-          }
-          return res.json();
-      })
       .then(data => {
           console.log("CheckoutPage: PaymentIntent created, clientSecret received.");
-          setClientSecret(data.clientSecret); // Save the client secret
+          setClientSecret(data.clientSecret);
       })
       .catch(error => {
           console.error("CheckoutPage: Error creating PaymentIntent:", error);
           setFormError(`Could not initialize payment: ${error.message}`);
-          setClientSecret(''); // Clear secret on error
+          setClientSecret('');
       });
     }
   }, [token, isCartLoading, cartItems.length]);
