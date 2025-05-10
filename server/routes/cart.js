@@ -19,8 +19,12 @@ router.get('/', authenticateToken, async (req, res) => {
             product: { id: item.product_id, name: item.name, price: item.price, image_url: item.image_url },
             quantity: item.quantity
         }));
+        
+        // Calculate total
+        const total = cartItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
+        
         console.log(`[Cart Router] Found ${cartItems.length} items for user ID: ${userId}`);
-        res.status(200).json(cartItems);
+        res.status(200).json({ items: cartItems, total });
     } catch (error) {
         console.error(`[Cart Router] Error fetching cart for user ID ${userId}:`, error.stack);
         res.status(500).json({ error: 'Internal Server Error fetching cart' });
@@ -59,7 +63,11 @@ router.post('/items', authenticateToken, async (req, res) => {
             product: { id: item.product_id, name: item.name, price: item.price, image_url: item.image_url },
             quantity: item.quantity
         }));
-        res.status(201).json(cartItems);
+        
+        // Calculate total
+        const total = cartItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
+        
+        res.status(201).json({ items: cartItems, total });
     } catch (error) {
         console.error(`[Cart Router] Error adding item for User ID ${userId}, Product ID ${productId}:`, error.stack);
         if (error.code === '23503') { return res.status(404).json({ error: 'Product not found.' }); }
@@ -94,7 +102,6 @@ router.put('/items/:productId', authenticateToken, async (req, res) => {
             `;
             const { rowCount } = await pool.query(query, [intQuantity, userId, intProductId]);
             if (rowCount === 0) {
-                 // If item didn't exist, maybe insert it? Or return 404? Returning 404 for now.
                  console.log(`[Cart Router] Cart item not found for User ID: ${userId}, Product ID: ${intProductId} during update.`);
                  return res.status(404).json({ error: 'Cart item not found.' });
             }
@@ -114,8 +121,13 @@ router.put('/items/:productId', authenticateToken, async (req, res) => {
                 price: item.price, 
                 image_url: item.image_url 
             }, 
-            quantity: item.quantity }));
-        res.status(200).json(cartItems);
+            quantity: item.quantity 
+        }));
+        
+        // Calculate total
+        const total = cartItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
+        
+        res.status(200).json({ items: cartItems, total });
 
     } catch (error) {
         console.error(`[Cart Router] Error updating quantity for User ID ${userId}, Product ID ${intProductId}:`, error.stack);
@@ -151,7 +163,11 @@ router.delete('/items/:productId', authenticateToken, async (req, res) => {
             },
             quantity: item.quantity 
         }));
-        res.status(200).json(cartItems);
+        
+        // Calculate total
+        const total = cartItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
+        
+        res.status(200).json({ items: cartItems, total });
     } catch (error) {
         console.error(`[Cart Router] Error removing item for User ID ${userId}, Product ID ${intProductId}:`, error.stack);
         res.status(500).json({ error: 'Internal Server Error removing item from cart' });
@@ -166,7 +182,7 @@ router.delete('/', authenticateToken, async (req, res) => {
         const query = 'DELETE FROM cart_items WHERE user_id = $1 RETURNING *';
         const { rowCount } = await pool.query(query, [userId]);
         console.log(`[Cart Router] Cleared ${rowCount} items for user ID: ${userId}`);
-        res.status(200).json([]); // Return empty array
+        res.status(200).json({ items: [], total: 0 }); // Return empty cart with total
     } catch (error) {
         console.error(`[Cart Router] Error clearing cart for user ID ${userId}:`, error.stack);
         res.status(500).json({ error: 'Internal Server Error clearing cart' });

@@ -233,25 +233,57 @@ router.post('/2fa/generate', authenticateToken, async (req, res) => {
 router.post('/2fa/verify', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
     const { token, secret } = req.body;
-    console.log(`[Auth Router] Verifying 2FA setup token for user ID: ${userId}`);
+    console.log(`[Auth Router] Verifying 2FA setup token for user ID: ${userId}`, { token, secret });
+    
     if (!token || !secret) {
+        console.error('[Auth Router] Missing token or secret:', { token, secret });
         return res.status(400).json({ error: 'Token code and secret are required.' });
     }
+
     try {
-        const verified = speakeasy.totp.verify({ secret: secret, encoding: 'base32', token: token, window: 1 });
+        // First check if 2FA is already enabled
+        const checkQuery = 'SELECT is_2fa_enabled FROM users WHERE id = $1';
+        const { rows } = await pool.query(checkQuery, [userId]);
+        
+        if (rows.length === 0) {
+            console.error(`[Auth Router] User not found for ID: ${userId}`);
+            return res.status(404).json({ error: 'User not found.' });
+        }
+
+        if (rows[0].is_2fa_enabled) {
+            console.error(`[Auth Router] 2FA already enabled for user ID: ${userId}`);
+            return res.status(400).json({ error: '2FA is already enabled for this account.' });
+        }
+
+        // Try with a wider window to account for time sync issues
+        const verified = speakeasy.totp.verify({ 
+            secret: secret, 
+            encoding: 'base32', 
+            token: token, 
+            window: 2, // Increased from 1 to 2 to allow for more time drift
+            step: 30 // Explicitly set step to 30 seconds
+        });
+
         if (verified) {
             console.log(`[Auth Router] 2FA token verified successfully for user ID: ${userId}`);
-            const updateQuery = `UPDATE users SET is_2fa_enabled = TRUE, totp_secret = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2;`;
-            await pool.query(updateQuery, [secret, userId]);
+            const updateQuery = `UPDATE users SET is_2fa_enabled = TRUE, totp_secret = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING id, username, email, is_2fa_enabled, is_admin;`;
+            const result = await pool.query(updateQuery, [secret, userId]);
             console.log(`[Auth Router] 2FA enabled and secret saved for user ID: ${userId}`);
-            res.json({ verified: true, message: '2FA enabled successfully!' });
+            res.json({ 
+                verified: true, 
+                message: '2FA enabled successfully!',
+                user: result.rows[0]
+            });
         } else {
             console.log(`[Auth Router] 2FA token verification failed for user ID: ${userId}`);
-            res.status(400).json({ verified: false, error: 'Invalid 2FA code.' });
+            res.status(400).json({ 
+                verified: false, 
+                error: 'Invalid 2FA code. Please make sure your authenticator app is in sync with the server time and try again.' 
+            });
         }
     } catch (error) {
-        console.error(`[Auth Router] Error verifying 2FA token for user ID ${userId}:`, error.stack);
-        res.status(500).json({ error: 'Internal Server Error verifying 2FA token.' });
+        console.error(`[Auth Router] Error verifying 2FA for user ID ${userId}:`, error.stack);
+        res.status(500).json({ error: 'Internal Server Error during 2FA verification.' });
     }
 });
 

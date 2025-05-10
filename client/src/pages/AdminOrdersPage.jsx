@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import fetchApi from '../utils/api';
 
 function AdminOrdersPage() {
   const [orders, setOrders] = useState([]);
@@ -8,39 +9,47 @@ function AdminOrdersPage() {
   const [error, setError] = useState(null);
   const { token } = useAuth();
 
-  const fetchAllOrders = useCallback(async () => {
-    if (!token) {
-      setError("Authentication token not found. Admin access required.");
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setError(null);
+  const fetchOrders = useCallback(async () => {
+    if (!token) { setError("Authentication token not found."); setLoading(false); return; }
+    console.log("AdminOrdersPage: Fetching orders...");
+    setLoading(true); setError(null);
     try {
-      const response = await fetch('/api/admin/orders', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+      const data = await fetchApi('/api/admin/orders', {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || `Failed to fetch orders: ${response.status}`);
-      }
+      console.log("AdminOrdersPage: Orders fetched:", data.length);
       setOrders(data);
-    } catch (err) {
-      console.error("AdminOrdersPage: Error fetching all orders:", err);
-      setError(err.message);
+    } catch (err) { 
+      console.error("AdminOrdersPage: Error fetching orders:", err); 
+      setError(err.message); 
       setOrders([]);
-    } finally {
-      setLoading(false);
+    } finally { 
+      setLoading(false); 
     }
   }, [token]);
 
   useEffect(() => {
-    fetchAllOrders();
-  }, [fetchAllOrders]);
+    fetchOrders();
+  }, [fetchOrders]);
+
+  const handleUpdateOrderStatus = async (orderId, newStatus) => {
+    console.log(`Updating order ${orderId} status to ${newStatus}`);
+    try {
+      const result = await fetchApi(`/api/admin/orders/${orderId}`, {
+        method: 'PATCH',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+      console.log(`Order ${orderId} status updated successfully:`, result);
+      fetchOrders(); // Refresh the orders list
+    } catch (err) {
+      console.error(`Error updating order ${orderId} status:`, err);
+      setError(err.message || 'Failed to update order status');
+    }
+  };
 
   // Helper
   const formatDateTime = (isoString) => {

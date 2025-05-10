@@ -1,117 +1,75 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-
+import fetchApi from '../utils/api';
 
 function LoginPage() {
-
-  const [emailInput, setEmailInput] = useState('');
-  const [passwordInput, setPasswordInput] = useState('');
-  const [totpCode, setTotpCode] = useState('');
-  const [requires2FA, setRequires2FA] = useState(false);
-  const [pendingUserId, setPendingUserId] = useState(null); 
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [show2FA, setShow2FA] = useState(false);
+  const [twoFactorCode, setTwoFactorCode] = useState('');
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = location.state?.from?.pathname || "/profile";
+  const [userId, setUserId] = useState(null);
 
-
-  const handlePasswordSubmit = async (event) => {
-    event.preventDefault();
-    setIsLoading(true);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     setError('');
-    setRequires2FA(false); 
-    setPendingUserId(null);
-    setTotpCode('');
+    setIsLoading(true);
 
     try {
-      const response = await fetch('/api/auth/login', {
+      const data = await fetchApi('/api/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: emailInput, password: passwordInput }),
+        body: JSON.stringify({ 
+          email: username,
+          password: password 
+        })
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || `Login failed with status: ${response.status}`);
-      }
-
-      // --- Check response from backend ---
-      if (data.requires2FA && data.userId) {
-        // 2FA required
-        console.log("LoginPage: 2FA required for user ID:", data.userId);
-        setRequires2FA(true);
-        setPendingUserId(data.userId);
-        setPasswordInput('');
-        setError('');
-      } else if (data.token && data.user) {
-        // Login successful (no 2FA or already verified)
-        console.log('LoginPage: Login successful (no 2FA needed)', data);
-        login(data.token, data.user);
-        console.log(`LoginPage: Navigating to ${from}`);
-        navigate(from, { replace: true });
+      if (data.requires2FA) {
+        setUserId(data.userId);
+        setShow2FA(true);
       } else {
-        throw new Error('Invalid response received from server during login.');
+        login(data.token, data.user);
+        const from = location.state?.from?.pathname || '/';
+        navigate(from, { replace: true });
       }
-
     } catch (err) {
       console.error('LoginPage: Password submission error:', err);
-      setError(err.message || 'Login failed. Please check credentials or server connection.');
-      setRequires2FA(false);
-      setPendingUserId(null);
+      setError(err.message || 'Failed to login');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // --- Handler for 2FA Code Submission ---
-  const handle2FASubmit = async (event) => {
-    event.preventDefault();
-    setIsLoading(true);
+  const handle2FASubmit = async (e) => {
+    e.preventDefault();
     setError('');
-
-    if (!pendingUserId || !totpCode) {
-        setError('User ID or 2FA code is missing. Please try logging in again.');
-        setIsLoading(false);
-        // Reset state
-        setRequires2FA(false);
-        setPendingUserId(null);
-        setTotpCode('');
-        setEmailInput(''); 
-        return;
-    }
+    setIsLoading(true);
 
     try {
-        const response = await fetch('/api/auth/verify-2fa', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: pendingUserId, totpCode: totpCode }),
-        });
+      const data = await fetchApi('/api/auth/verify-2fa', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          userId: userId,
+          totpCode: twoFactorCode 
+        })
+      });
 
-        const data = await response.json();
-
-        if (!response.ok) {
-            // Specific error for invalid code vs other errors
-            throw new Error(data.error || `2FA verification failed: ${response.status}`);
-        }
-        if (login && data.token && data.user) {
-            console.log('LoginPage: 2FA successful, logging in.', data);
-            login(data.token, data.user); // Update global state
-            console.log(`LoginPage: Navigating to ${from}`);
-            navigate(from, { replace: true });
-        } else {
-            throw new Error('Invalid response received from server after 2FA verification.');
-        }
-
+      login(data.token, data.user);
+      const from = location.state?.from?.pathname || '/';
+      navigate(from, { replace: true });
     } catch (err) {
-        console.error('LoginPage: 2FA submission error:', err);
-        setError(err.message || 'Failed to verify 2FA code.');
-        setTotpCode('');
+      console.error('LoginPage: 2FA submission error:', err);
+      setError(err.message || 'Failed to verify 2FA code');
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -120,29 +78,28 @@ function LoginPage() {
   const labelClasses = "block text-sm font-medium text-gray-700 mb-1";
   const buttonClasses = "w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed";
 
-
   return (
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-150px)]">
       <div className="w-full max-w-md p-8 space-y-6 bg-white shadow-md rounded-lg">
         <h1 className="text-2xl font-bold text-center text-gray-900">
-          {requires2FA ? 'Enter Verification Code' : 'Login to TechStop'}
+          {show2FA ? 'Enter Verification Code' : 'Login to TechStop'}
         </h1>
-        {!requires2FA ? (
+        {!show2FA ? (
           // --- Password Form ---
-          <form onSubmit={handlePasswordSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label htmlFor="email" className={labelClasses}>Email address</label>
+              <label htmlFor="username" className={labelClasses}>Username</label>
               <input
-                type="email" id="email" name="email" value={emailInput}
-                onChange={(e) => setEmailInput(e.target.value)} required disabled={isLoading}
+                type="text" id="username" name="username" value={username}
+                onChange={(e) => setUsername(e.target.value)} required disabled={isLoading}
                 placeholder="you@example.com" className={inputClasses} autoComplete="username"
               />
             </div>
             <div>
               <label htmlFor="password" className={labelClasses}>Password</label>
               <input
-                type="password" id="password" name="password" value={passwordInput}
-                onChange={(e) => setPasswordInput(e.target.value)} required disabled={isLoading}
+                type="password" id="password" name="password" value={password}
+                onChange={(e) => setPassword(e.target.value)} required disabled={isLoading}
                 placeholder="Password" className={inputClasses} autoComplete="current-password"
               />
             </div>
@@ -160,10 +117,10 @@ function LoginPage() {
               Enter the 6-digit code shown in your authenticator app.
             </p>
             <div>
-              <label htmlFor="totp-code" className={labelClasses}>Verification Code</label>
+              <label htmlFor="two-factor-code" className={labelClasses}>Verification Code</label>
               <input
-                type="text" id="totp-code" name="totpCode" value={totpCode}
-                onChange={(e) => setTotpCode(e.target.value)} required disabled={isLoading}
+                type="text" id="two-factor-code" name="twoFactorCode" value={twoFactorCode}
+                onChange={(e) => setTwoFactorCode(e.target.value)} required disabled={isLoading}
                 placeholder="123456" maxLength="6" pattern="\d{6}" inputMode="numeric"
                 className={`${inputClasses} text-center tracking-widest`} // Center text, add tracking
                 autoComplete="one-time-code"
@@ -171,13 +128,13 @@ function LoginPage() {
             </div>
             {error && <p className="text-sm text-red-600 text-center font-medium">{error} Please try again.</p>}
             <div>
-              <button type="submit" disabled={isLoading || totpCode.length !== 6} className={buttonClasses}>
+              <button type="submit" disabled={isLoading || twoFactorCode.length !== 6} className={buttonClasses}>
                 {isLoading ? 'Verifying...' : 'Verify Code'}
               </button>
             </div>
             <button
               type="button"
-              onClick={() => { setRequires2FA(false); setPendingUserId(null); setError(''); setEmailInput(''); setPasswordInput(''); }}
+              onClick={() => { setShow2FA(false); setError(''); setUsername(''); setPassword(''); }}
               disabled={isLoading}
               className="w-full text-center text-sm text-gray-600 hover:text-blue-800 mt-2"
             >
@@ -185,7 +142,7 @@ function LoginPage() {
             </button>
           </form>
         )}
-        {!requires2FA && (
+        {!show2FA && (
           <p className="mt-4 text-center text-sm text-gray-600">
             Don't have an account?{' '}
             <Link to="/register" className="font-medium text-blue-600 hover:text-blue-500">

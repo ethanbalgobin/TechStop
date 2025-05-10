@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import fetchApi from '../utils/api';
 
 
 function ProductForm({ initialData = {}, categories = [], onSubmit, onCancel, isLoading }) {
@@ -43,130 +44,123 @@ function ProductForm({ initialData = {}, categories = [], onSubmit, onCancel, is
 
 function AdminProductsPage() {
   const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { token } = useAuth();
-  const [categories, setCategories] = useState([]);
-  const [loadingCategories, setLoadingCategories] = useState(true);
+
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [formError, setFormError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [productToDelete, setProductToDelete] = useState(null);
   const [deleteConfirmChecked, setDeleteConfirmChecked] = useState(false);
 
   const fetchProducts = useCallback(async () => {
-    if (!token) { setError("Authentication token not found."); setLoading(false); return; } 
-    setLoading(true); 
-    setError(null); 
-    try { 
-      const response = await fetch('/api/admin/products', { headers: { 'Authorization': `Bearer ${token}` } });
-      const data = await response.json(); 
-      if (!response.ok) { 
-        throw new Error(data.error || `Failed to fetch products: ${response.status}`); 
-      } 
-      setProducts(data); 
+    if (!token) { setError("Authentication token not found."); setLoading(false); return; }
+    console.log("AdminProductsPage: Fetching products...");
+    setLoading(true); setError(null);
+    try {
+      const data = await fetchApi('/api/admin/products', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      console.log("AdminProductsPage: Products fetched:", data.length);
+      setProducts(data);
     } catch (err) { 
-      setError(err.message); setProducts([]); 
+      console.error("AdminProductsPage: Error fetching products:", err); 
+      setError(err.message); 
+      setProducts([]);
     } finally { 
       setLoading(false); 
-    } }, [token]);
+    }
+  }, [token]);
 
   const fetchCategories = useCallback(async () => {
-     if (!token) return; 
-     setLoadingCategories(true); 
-     try {
-      const response = await fetch('/api/admin/categories', { headers: { 'Authorization': `Bearer ${token}` } });
-      const data = await response.json(); 
-      if (!response.ok) {
-         throw new Error(data.error || `Failed to fetch categories: ${response.status}`); 
-      } 
-      setCategories(data); 
-    } catch {
-      setError(prev => prev ? `${prev}\nCould not load categories.` : 'Could not load categories.');
-      setCategories([]); 
-    } finally { setLoadingCategories(false); } }, [token]);
+    if (!token) { setError("Authentication token not found."); setLoading(false); return; }
+    console.log("AdminProductsPage: Fetching categories...");
+    setLoading(true); setError(null);
+    try {
+      const data = await fetchApi('/api/admin/categories', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      console.log("AdminProductsPage: Categories fetched:", data.length);
+      setCategories(data);
+    } catch (err) { 
+      console.error("AdminProductsPage: Error fetching categories:", err); 
+      setError(err.message); 
+      setCategories([]);
+    } finally { 
+      setLoading(false); 
+    }
+  }, [token]);
 
-  useEffect(() => { fetchProducts(); fetchCategories(); }, [fetchProducts, fetchCategories]);
+  useEffect(() => {
+    fetchProducts();
+    fetchCategories();
+  }, [fetchProducts, fetchCategories]);
 
-  // Form Handlers
   const handleShowAddForm = () => { setEditingProduct(null); setFormError(''); setShowForm(true); };
   const handleShowEditForm = (product) => { setEditingProduct(product); setFormError(''); setShowForm(true); };
   const handleCancelForm = () => { setShowForm(false); setEditingProduct(null); setFormError(''); };
+
   const handleFormSubmit = async (productData) => {
-    setIsSubmitting(true); 
-    setFormError(''); 
-    const isEditing = !!editingProduct; 
-    const url = isEditing ? `/api/admin/products/${editingProduct.id}` : '/api/admin/products'; 
+    setIsSubmitting(true); setFormError('');
+    const isEditing = !!editingProduct;
+    const url = isEditing ? `/api/admin/products/${editingProduct.id}` : '/api/admin/products';
     const method = isEditing ? 'PUT' : 'POST';
-    try { 
-      const response = await fetch(url, {
+    console.log(`Submitting ${isEditing ? 'update' : 'add'} for product:`, productData);
+    try {
+      const result = await fetchApi(url, {
         method: method,
-        headers: { 'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json', }, 
-        body: JSON.stringify(productData), 
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(productData),
       });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || `Failed to ${isEditing ? 'update' : 'add'} product.`);
-      }
-      setShowForm(false);
-      setEditingProduct(null);
-      fetchProducts(); 
-    }
-    catch (err) {
-      setFormError(err.message || `An error occurred.`); 
-    } finally {
+      console.log(`Product ${isEditing ? 'updated' : 'added'} successfully:`, result);
+      setShowForm(false); setEditingProduct(null); fetchProducts(); // Refresh list
+    } catch (err) {
+      console.error(`Error ${isEditing ? 'updating' : 'adding'} product:`, err); 
+      setFormError(err.message || `An error occurred.`);
+    } finally { 
       setIsSubmitting(false); 
-    } };
+    }
+  };
 
   const handleDeleteProduct = (productId, productName) => {
-    console.log(`Initiating delete for Product ID: ${productId}`);
     setProductToDelete({ id: productId, name: productName });
-    setDeleteConfirmChecked(false); 
-    setShowDeleteConfirm(true); 
+    setDeleteConfirmChecked(false);
+    setShowDeleteConfirm(true);
     setError('');
   };
 
   const handleConfirmDelete = async () => {
-    if (!productToDelete || !deleteConfirmChecked) {
-      console.log("Delete confirmation not checked or product not set.");
-      return;
-    }
-    console.log(`Confirming delete for Product ID: ${productToDelete.id}`);
-    setIsSubmitting(true);
-    setError('');
+    if (!productToDelete || !deleteConfirmChecked) return;
+    setIsSubmitting(true); setError('');
     try {
-        const response = await fetch(`/api/admin/products/${productToDelete.id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}` },
-        });
-        const result = await response.json();
-        if (!response.ok) {
-            throw new Error(result.error || `Failed to delete product: ${response.status}`);
-        }
-        console.log(`Product ID: ${productToDelete.id} deleted successfully.`);
-        setShowDeleteConfirm(false);
-        setProductToDelete(null);
-        fetchProducts();
+      const result = await fetchApi(`/api/admin/products/${productToDelete.id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      console.log(`Product ID: ${productToDelete.id} deleted successfully.`);
+      setShowDeleteConfirm(false); setProductToDelete(null); fetchProducts();
     } catch (err) {
-        console.error(`Error deleting product ID ${productToDelete.id}:`, err);
-        setError(err.message || 'Could not delete product.'); 
-        setShowDeleteConfirm(false);
-        setProductToDelete(null);
+      console.error(`Error deleting product ID ${productToDelete.id}:`, err); 
+      setError(err.message || 'Could not delete product.'); 
+      setShowDeleteConfirm(false); 
+      setProductToDelete(null);
     } finally {
-        setIsSubmitting(false);
+      setIsSubmitting(false); 
     }
   };
 
-  const handleCancelDelete = () => {
-    setShowDeleteConfirm(false);
-    setProductToDelete(null);
+  const handleCancelDelete = () => { 
+    setShowDeleteConfirm(false); 
+    setProductToDelete(null); 
   };
 
   // --- Render Logic ---
-  if (loading || loadingCategories) { return <div className="text-center text-gray-500 py-10">Loading data...</div>; }
+  if (loading) { return <div className="text-center text-gray-500 py-10">Loading data...</div>; }
   if (error && products.length === 0 && !error.includes('categories')) { return <div className="text-center text-red-600 bg-red-100 p-4 rounded-md max-w-lg mx-auto">Error: {error}</div>; }
 
   // Styling classes

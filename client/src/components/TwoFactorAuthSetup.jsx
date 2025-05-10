@@ -1,90 +1,71 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import fetchApi from '../utils/api';
 
 function TwoFactorAuthSetup({ onSetupComplete }) {
-  const { token } = useAuth(); 
-
-  // States for the setup process
-  const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const [step, setStep] = useState('init');
   const [secret, setSecret] = useState('');
+  const [qrCode, setQrCode] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
-  const [setupStarted, setSetupStarted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const { token } = useAuth();
 
-
-  const handleGenerateSecret = async () => {
-    setIsLoading(true);
+  const initiate2FASetup = async () => {
     setError('');
-    setMessage('');
-    setQrCodeUrl('');
-    setSecret('');
-    setVerificationCode('');
-
+    setIsLoading(true);
     try {
-      const response = await fetch('/api/auth/2fa/generate', {
+      const data = await fetchApi('/api/auth/2fa/generate', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to generate 2FA secret.');
-      }
-      setSecret(data.secret); // base32 secret
-      setQrCodeUrl(data.qrCodeUrl);
-      setSetupStarted(true); // Show the verification step
-      setMessage('Scan the QR code with your authenticator app and enter the code below.');
+      setSecret(data.secret);
+      setQrCode(data.qrCodeUrl);
+      setStep('verify');
     } catch (err) {
-      console.error("Error generating 2FA secret:", err);
-      setError(err.message || 'Could not start 2FA setup.');
-      setSetupStarted(false);
+      setError(err.message || 'Failed to initiate 2FA setup');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // 2. Verify Code and Enable 2FA
-  const handleVerifyCode = async (event) => {
-    event.preventDefault();
-    if (!verificationCode || !secret) {
-      setError('Please enter the code from your authenticator app.');
+  const verifyAndEnable2FA = async (e) => {
+    e.preventDefault(); // Prevent form submission from refreshing the page
+    
+    if (!verificationCode || verificationCode.length !== 6) {
+      setError('Please enter a valid 6-digit code');
       return;
     }
-    setIsLoading(true);
+
+    if (!secret) {
+      setError('Missing 2FA secret. Please try starting the setup again.');
+      return;
+    }
+
     setError('');
-    setMessage('');
-
+    setIsLoading(true);
     try {
-      const response = await fetch('/api/auth/2fa/verify', {
+      console.log('Verifying 2FA with:', { token: verificationCode, secret });
+      const response = await fetchApi('/api/auth/2fa/verify', {
         method: 'POST',
-        headers: {
+        headers: { 
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ token: verificationCode, secret: secret }),
+        body: JSON.stringify({ 
+          token: verificationCode,
+          secret: secret 
+        })
       });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Verification failed.');
-      }
-
-      // Verification successful
-      setMessage('2FA enabled successfully!');
-      setQrCodeUrl('');
-      setSecret('');
-      setVerificationCode('');
-      setSetupStarted(false);
+      
+      console.log('2FA verification response:', response);
+      setStep('complete');
       if (onSetupComplete) {
         onSetupComplete();
       }
-
     } catch (err) {
-      console.error("Error verifying 2FA code:", err);
-      setError(err.message || 'Could not verify code. It might be incorrect or expired.');
+      console.error('2FA verification error:', err);
+      setError(err.message || 'Failed to verify 2FA code');
     } finally {
       setIsLoading(false);
     }
@@ -100,34 +81,34 @@ function TwoFactorAuthSetup({ onSetupComplete }) {
     <div className="mt-6 p-6 border border-gray-200 rounded-lg bg-gray-50 text-center">
       <h2 className="text-lg font-semibold text-gray-800 mb-4">Setup Two-Factor Authentication</h2>
 
-      {!setupStarted ? (
+      {step === 'init' ? (
         <>
           <p className="text-sm text-gray-600 mb-4">
             Enhance your account security by enabling 2FA using an authenticator app (Google Authenticator, Authy, etc.).
           </p>
           <button
-            onClick={handleGenerateSecret}
+            onClick={initiate2FASetup}
             disabled={isLoading}
             className={`${buttonClasses} inline-flex justify-center`} // Center button text
           >
             {isLoading ? 'Generating...' : 'Start 2FA Setup'}
           </button>
         </>
-      ) : (
+      ) : step === 'verify' ? (
         // Step 2: Show QR Code and Verification Input
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
             Scan the QR code below with your authenticator app. If you cannot scan the code, manually enter the secret key.
           </p>
-          {qrCodeUrl && (
-            <img src={qrCodeUrl} alt="2FA QR Code" className="mx-auto my-4 border border-gray-300 p-2 bg-white" />
+          {qrCode && (
+            <img src={qrCode} alt="2FA QR Code" className="mx-auto my-4 border border-gray-300 p-2 bg-white" />
           )}
           {secret && (
             <p className="text-xs text-gray-500 break-all">
               Secret Key: <code className="bg-gray-200 px-1 rounded">{secret}</code>
             </p>
           )}
-          <form onSubmit={handleVerifyCode} className="space-y-3">
+          <form onSubmit={verifyAndEnable2FA} className="space-y-3">
             <label htmlFor="verificationCode" className="block text-sm font-medium text-gray-700">
               Enter Verification Code:
             </label>
@@ -153,9 +134,10 @@ function TwoFactorAuthSetup({ onSetupComplete }) {
             </button>
           </form>
         </div>
+      ) : (
+        <p className="mt-4 text-sm text-green-600">2FA enabled successfully!</p>
       )}
 
-      {message && <p className="mt-4 text-sm text-green-600">{message}</p>}
       {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
     </div>
   );

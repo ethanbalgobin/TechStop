@@ -1,63 +1,49 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import fetchApi from '../utils/api';
 
 function RegistrationPage() {
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [setup2FA, setSetup2FA] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    username: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    firstName: '',
+    lastName: ''
+  });
   const [error, setError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
-  const navigate = useNavigate(); 
+  const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    setIsLoading(true);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     setError('');
-    setSuccessMessage('');
+    setIsLoading(true);
 
-    if (!username || !email || !password) {
-      setError('Username, email, and password are required.');
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
       setIsLoading(false);
       return;
     }
 
     try {
-      const response = await fetch('/api/auth/register', {
+      const data = await fetchApi('/api/auth/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username, email, password,
-          first_name: firstName, last_name: lastName
-        }),
+          username: formData.username,
+          email: formData.email,
+          password: formData.password,
+          first_name: formData.firstName,
+          last_name: formData.lastName
+        })
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || `Registration failed: ${response.status}`);
-      }
-
-      console.log('Registration successful:', data);
-      setSuccessMessage('Registration successful! Redirecting...');
-      setUsername(''); setEmail(''); setPassword('');
-      setFirstName(''); setLastName('');
-      setTimeout(() => {
-        if (setup2FA) {
-          console.log("Redirecting to profile for 2FA setup (will require login).");
-          navigate('/profile');
-        } else {
-          console.log("Redirecting to login.");
-          navigate('/login');
-        }
-      }, 1500);
-
+      // Registration successful, redirect to login
+      navigate('/login', { 
+        state: { message: 'Registration successful! Please log in.' }
+      });
     } catch (err) {
-      console.error('Registration error:', err);
-      setError(err.message || 'An unexpected error occurred during registration.');
+      setError(err.message || 'Failed to register');
     } finally {
       setIsLoading(false);
     }
@@ -76,43 +62,33 @@ function RegistrationPage() {
           {/* Username Input */}
           <div>
             <label htmlFor="reg-username" className={labelClasses}>Username</label>
-            <input type="text" id="reg-username" value={username} onChange={(e) => setUsername(e.target.value)} required disabled={isLoading} className={inputClasses} />
+            <input type="text" id="reg-username" value={formData.username} onChange={(e) => setFormData({ ...formData, username: e.target.value })} required disabled={isLoading} className={inputClasses} />
           </div>
           {/* Email Input */}
           <div>
             <label htmlFor="reg-email" className={labelClasses}>Email address</label>
-            <input type="email" id="reg-email" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isLoading} className={inputClasses} />
+            <input type="email" id="reg-email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required disabled={isLoading} className={inputClasses} />
           </div>
           {/* Password Input */}
           <div>
             <label htmlFor="reg-password" className={labelClasses}>Password</label>
-            <input type="password" id="reg-password" value={password} onChange={(e) => setPassword(e.target.value)} required disabled={isLoading} className={inputClasses} />
+            <input type="password" id="reg-password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required disabled={isLoading} className={inputClasses} />
+          </div>
+          {/* Confirm Password Input */}
+          <div>
+            <label htmlFor="reg-confirm-password" className={labelClasses}>Confirm Password</label>
+            <input type="password" id="reg-confirm-password" value={formData.confirmPassword} onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })} required disabled={isLoading} className={inputClasses} />
           </div>
           {/* First Name Input */}
           <div>
             <label htmlFor="reg-firstname" className={labelClasses}>First Name <span className="text-gray-500">(Optional)</span></label>
-            <input type="text" id="reg-firstname" value={firstName} onChange={(e) => setFirstName(e.target.value)} disabled={isLoading} className={inputClasses} />
+            <input type="text" id="reg-firstname" value={formData.firstName} onChange={(e) => setFormData({ ...formData, firstName: e.target.value })} disabled={isLoading} className={inputClasses} />
           </div>
           {/* Last Name Input */}
           <div>
             <label htmlFor="reg-lastname" className={labelClasses}>Last Name <span className="text-gray-500">(Optional)</span></label>
-            <input type="text" id="reg-lastname" value={lastName} onChange={(e) => setLastName(e.target.value)} disabled={isLoading} className={inputClasses} />
+            <input type="text" id="reg-lastname" value={formData.lastName} onChange={(e) => setFormData({ ...formData, lastName: e.target.value })} disabled={isLoading} className={inputClasses} />
           </div>
-          <div className="flex items-center pt-2">
-            <input
-              id="setup-2fa"
-              name="setup-2fa"
-              type="checkbox"
-              checked={setup2FA}
-              onChange={(e) => setSetup2FA(e.target.checked)}
-              disabled={isLoading}
-              className={checkboxClasses}
-            />
-            <label htmlFor="setup-2fa" className={checkboxLabelClasses}>
-              Enable Two-Factor Authentication now (Recommended)
-            </label>
-          </div>
-          {successMessage && <p className="text-sm text-green-600 text-center font-medium">{successMessage}</p>}
           {error && <p className="text-sm text-red-600 text-center font-medium">{error}</p>}
           <div>
             <button

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import fetchApi from '../utils/api';
 
 function CategoryForm({ initialData = {}, onSubmit, onCancel, isLoading, formError }) {
   const [name, setName] = useState(initialData.name || '');
@@ -74,15 +75,18 @@ function AdminCategoriesPage() {
     console.log("AdminCategoriesPage: Fetching categories...");
     setLoading(true); setError(null);
     try {
-      const response = await fetch('/api/admin/categories', { headers: { 'Authorization': `Bearer ${token}` } });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || `Failed to fetch categories: ${response.status}`); 
-      }
+      const data = await fetchApi('/api/admin/categories', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       console.log("AdminCategoriesPage: Categories fetched:", data.length);
       setCategories(data);
-    } catch (err) { console.error("AdminCategoriesPage: Error fetching categories:", err); setError(err.message); setCategories([]);
-    } finally { setLoading(false); }
+    } catch (err) { 
+      console.error("AdminCategoriesPage: Error fetching categories:", err); 
+      setError(err.message); 
+      setCategories([]);
+    } finally { 
+      setLoading(false); 
+    }
   }, [token]);
 
   useEffect(() => {
@@ -93,7 +97,6 @@ function AdminCategoriesPage() {
   const handleShowEditForm = (category) => { setEditingCategory(category); setFormError(''); setShowForm(true); };
   const handleCancelForm = () => { setShowForm(false); setEditingCategory(null); setFormError(''); };
 
-
   const handleFormSubmit = async (categoryData) => {
     setIsSubmitting(true); setFormError('');
     const isEditing = !!editingCategory;
@@ -101,25 +104,20 @@ function AdminCategoriesPage() {
     const method = isEditing ? 'PUT' : 'POST';
     console.log(`Submitting ${isEditing ? 'update' : 'add'} for category:`, categoryData);
     try {
-      const response = await fetch(url, {
+      const result = await fetchApi(url, {
         method: method,
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(categoryData),
       });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || `Failed to ${isEditing ? 'update' : 'add'} category.`); 
-      }
       console.log(`Category ${isEditing ? 'updated' : 'added'} successfully:`, result);
       setShowForm(false); setEditingCategory(null); fetchCategories(); // Refresh list
     } catch (err) {
-       console.error(`Error ${isEditing ? 'updating' : 'adding'} category:`, err); 
-       setFormError(err.message || `An error occurred.`);
+      console.error(`Error ${isEditing ? 'updating' : 'adding'} category:`, err); 
+      setFormError(err.message || `An error occurred.`);
     } finally { 
       setIsSubmitting(false); 
     }
   };
-
 
   const handleDeleteCategory = (categoryId, categoryName) => {
     setCategoryToDelete({ id: categoryId, name: categoryName });
@@ -127,36 +125,36 @@ function AdminCategoriesPage() {
     setShowDeleteConfirm(true);
     setError('');
   };
+
   const handleConfirmDelete = async () => {
     if (!categoryToDelete || !deleteConfirmChecked) return;
     setIsSubmitting(true); setError('');
     try {
-      const response = await fetch(`/api/admin/categories/${categoryToDelete.id}`, {
-        method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` },
+      const result = await fetchApi(`/api/admin/categories/${categoryToDelete.id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
       });
-      const result = await response.json();
-      if (!response.ok) {
-         throw new Error(result.error || `Failed to delete category: ${response.status}`); 
-        }
       console.log(`Category ID: ${categoryToDelete.id} deleted successfully.`);
       setShowDeleteConfirm(false); setCategoryToDelete(null); fetchCategories();
     } catch (err) {
       console.error(`Error deleting category ID ${categoryToDelete.id}:`, err); 
-      setError(err.message || 'Could not delete category.'); setShowDeleteConfirm(false); setCategoryToDelete(null);
+      setError(err.message || 'Could not delete category.'); 
+      setShowDeleteConfirm(false); 
+      setCategoryToDelete(null);
     } finally {
       setIsSubmitting(false); 
     }
   };
-  const handleCancelDelete = () => { 
-    setShowDeleteConfirm(false); setCategoryToDelete(null); 
-  };
 
+  const handleCancelDelete = () => { 
+    setShowDeleteConfirm(false); 
+    setCategoryToDelete(null); 
+  };
 
   const deleteButtonClasses = "px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed";
   const secondaryButtonClassesDelete = "px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"; // Renamed to avoid conflict
   const checkboxLabelClasses = "ml-2 block text-sm text-gray-900";
   const checkboxClasses = "h-4 w-4 text-red-600 border-gray-300 rounded focus:ring-red-500";
-
 
   // Render Logic
   if (loading) { return <div className="text-center text-gray-500 py-10">Loading categories...</div>; }

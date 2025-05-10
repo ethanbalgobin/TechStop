@@ -57,8 +57,8 @@ function CartPage() {
             </div>
 
             <div className="bg-white divide-y divide-gray-200">
-              {cartItems.map(item => (
-                <div key={item.product.id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center">
+              {cartItems.map((item, index) => (
+                <div key={`${item.product.id}-${index}`} className="grid grid-cols-12 gap-4 px-6 py-4 items-center">
                   <div className="col-span-5 text-sm font-medium text-gray-900 truncate" title={item.product.name}>
                     {item.product.name}
                   </div>

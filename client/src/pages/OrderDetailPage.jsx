@@ -1,15 +1,47 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import fetchApi from '../utils/api';
 
-function OrderDetailPage() {
-  const { orderId } = useParams();
-
+function OrderDetailsPage() {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { token } = useAuth();
+  const { orderId } = useParams();
 
+  useEffect(() => {
+    if (!token) {
+      setError("Not logged in.");
+      setLoading(false);
+      return;
+    }
+
+    console.log("OrderDetailsPage: Fetching order details...");
+    setLoading(true);
+    setError(null);
+
+    fetchApi(`/api/orders/${orderId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    })
+    .then(data => {
+      console.log("OrderDetailsPage: Order details fetched successfully:", data);
+      setOrder(data);
+    })
+    .catch(err => {
+      console.error("OrderDetailsPage: Fetch error:", err);
+      setError(err.message || 'Failed to load order details.');
+    })
+    .finally(() => {
+      setLoading(false);
+    });
+  }, [token, orderId]);
+
+  // Helper
   const formatDateTime = (isoString) => {
     if (!isoString) return 'N/A';
     try {
@@ -18,146 +50,102 @@ function OrderDetailPage() {
           hour: '2-digit', minute: '2-digit'
       });
     } catch (err) {
-      return isoString || err ;
+      return isoString || err;
     }
   };
 
-  // --- Fetch order details ---
-  useEffect(() => {
-    if (!orderId) {
-      setError("Order ID not found in URL.");
-      setLoading(false);
-      return;
-    }
-    if (!token) {
-      setError("Not authenticated.");
-      setLoading(false);
-      return;
-    }
-
-    console.log(`OrderDetailPage: Fetching details for Order ID: ${orderId}`);
-    setLoading(true);
-    setError(null);
-
-    fetch(`/api/orders/${orderId}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    })
-    .then(async response => {
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        const errorMessage = data?.error || `Error fetching order: ${response.status}`;
-        console.error("OrderDetailPage: API Error:", errorMessage);
-        // Handle specific errors like 404 Not Found or 401/403 Unauthorized if needed
-        throw new Error(errorMessage);
-      }
-      console.log("OrderDetailPage: Order details fetched:", data);
-      setOrder(data);
-    })
-    .catch(err => {
-      console.error("OrderDetailPage: Fetch error:", err);
-      setError(err.message || 'Failed to load order details.');
-      setOrder(null);
-    })
-    .finally(() => {
-      setLoading(false);
-    });
-
-  }, [orderId, token]);
-
   // --- Render Logic ---
+
   if (loading) {
-    // Loading style
     return <div className="text-center text-gray-500 py-10">Loading order details...</div>;
   }
 
   if (error) {
-    // Error style
-    return <div className="text-center text-red-600 bg-red-100 p-4 rounded-md max-w-md mx-auto">Error loading order details: {error}</div>;
+    return <div className="text-center text-red-600 bg-red-100 p-4 rounded-md max-w-md mx-auto">Error loading order: {error}</div>;
   }
 
   if (!order) {
-    return <div className="text-center text-gray-500 py-10">Order not found or unable to load.</div>;
+    return <div className="text-center text-red-600 bg-red-100 p-4 rounded-md max-w-md mx-auto">Order not found</div>;
   }
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* Back link */}
-      <Link
-        to="/orders"
-        className="inline-block mb-6 text-blue-600 hover:text-blue-800 hover:underline"
-      >
-        &larr; Back to Order History
-      </Link>
-
-      {/* Order Summary Header Section */}
-      <div className="bg-white shadow-md rounded-lg p-6 border border-gray-200 mb-6">
-        <h1 className="text-2xl font-bold text-gray-800 mb-4">Order Details</h1>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-          <div>
-            <span className="font-medium text-gray-500 block">Order ID:</span>
-            <span className="text-gray-900">{order.id}</span>
-          </div>
-          <div>
-            <span className="font-medium text-gray-500 block">Date Placed:</span>
-            <span className="text-gray-900">{formatDateTime(order.order_date)}</span>
-          </div>
-          <div>
-            <span className="font-medium text-gray-500 block">Total Amount:</span>
-            <span className="text-gray-900 font-semibold">${Number(order.total_amount).toFixed(2)}</span>
-          </div>
-          <div>
-            <span className="font-medium text-gray-500 block">Status:</span>
-            <span className="text-gray-900">{order.status}</span>
-          </div>
-        </div>
+      <div className="mb-6">
+        <Link to="/orders" className="text-blue-600 hover:text-blue-800">
+          ← Back to Orders
+        </Link>
       </div>
 
-      {/* Main Content Grid (Items and Shipping) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Items Ordered Section (Takes 2 columns on medium+ screens) */}
-        <div className="md:col-span-2 bg-white shadow-md rounded-lg p-6 border border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">Items Ordered</h2>
-          <div className="space-y-4">
-            {order.items && order.items.length > 0 ? (
-              order.items.map(item => (
-                <div key={item.productId} className="flex justify-between items-center border-b border-gray-100 pb-3">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{item.name}</p>
-                    <p className="text-xs text-gray-500">Qty: {item.quantity}</p>
-                  </div>
-                  <div className="text-sm text-gray-700">
-                    ${Number(item.pricePerUnit).toFixed(2)} each
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-gray-500">No items found for this order.</p>
-            )}
+      <div className="bg-white shadow-md rounded-lg p-6">
+        <h1 className="text-2xl font-bold text-gray-800 mb-6">Order Details</h1>
+        
+        {/* Order Summary */}
+        <div className="mb-8">
+          <h2 className="text-lg font-semibold text-gray-700 mb-4">Order Summary</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm text-gray-600">Order ID</p>
+              <p className="font-medium">{order.id}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Order Date</p>
+              <p className="font-medium">{formatDateTime(order.order_date)}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Status</p>
+              <p className="font-medium">{order.status}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Total Amount</p>
+              <p className="font-medium">${Number(order.total_amount).toFixed(2)}</p>
+            </div>
           </div>
         </div>
 
-        {/* Shipping Address Section (Takes 1 column on medium+ screens) */}
-        <div className="bg-white shadow-md rounded-lg p-6 border border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">Shipping Address</h2>
+        {/* Shipping Address */}
+        <div className="mb-8">
+          <h2 className="text-lg font-semibold text-gray-700 mb-4">Shipping Address</h2>
           {order.shippingAddress ? (
-            <div className="text-sm text-gray-700 space-y-1">
+            <div className="bg-gray-50 p-4 rounded-md">
+              <p className="font-medium">{order.shippingAddress.full_name}</p>
               <p>{order.shippingAddress.address_line1}</p>
               {order.shippingAddress.address_line2 && <p>{order.shippingAddress.address_line2}</p>}
-              <p>{order.shippingAddress.city}, {order.shippingAddress.state_province_region || ''}</p>
-              <p>{order.shippingAddress.postal_code}</p>
+              <p>{order.shippingAddress.city}, {order.shippingAddress.state_province_region} {order.shippingAddress.postal_code}</p>
               <p>{order.shippingAddress.country}</p>
             </div>
           ) : (
-            <p className="text-sm text-gray-500">Shipping address not available.</p>
+            <p className="text-gray-500">No shipping address available</p>
           )}
+        </div>
+
+        {/* Order Items */}
+        <div>
+          <h2 className="text-lg font-semibold text-gray-700 mb-4">Order Items</h2>
+          <div className="space-y-4">
+            {order.items && order.items.map((item) => (
+              <div key={item.productId} className="flex items-center space-x-4 p-4 bg-gray-50 rounded-md">
+                {item.imageUrl && (
+                  <img 
+                    src={item.imageUrl} 
+                    alt={item.name} 
+                    className="w-16 h-16 object-cover rounded"
+                  />
+                )}
+                <div className="flex-1">
+                  <h3 className="font-medium">{item.name}</h3>
+                  <p className="text-sm text-gray-600">Quantity: {item.quantity}</p>
+                  <p className="text-sm text-gray-600">Price: ${Number(item.pricePerUnit).toFixed(2)} each</p>
+                </div>
+                <div className="text-right">
+                  <p className="font-medium">${Number(item.pricePerUnit * item.quantity).toFixed(2)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-export default OrderDetailPage;
+export default OrderDetailsPage; 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import fetchApi from '../utils/api';
 
 function ProductsPage() {
   const [products, setProducts] = useState([]);
@@ -10,15 +11,8 @@ function ProductsPage() {
     console.log("ProductsPage: Fetching products...");
     setLoading(true);
     setError(null); 
-    fetch('/api/products')
-      .then(response => {
-        if (!response.ok) {
-           return response.json().catch(() => null).then(errData => {
-               throw new Error(errData?.error || `HTTP error fetching products! status: ${response.status}`);
-           });
-        }
-        return response.json();
-      })
+    
+    fetchApi('/api/products')
       .then(data => {
         console.log("ProductsPage: Products fetched successfully.", data);
         setProducts(data);

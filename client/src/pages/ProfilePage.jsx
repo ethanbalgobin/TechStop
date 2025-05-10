@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext'; 
 import TwoFactorAuthSetup from '../components/TwoFactorAuthSetup';
+import fetchApi from '../utils/api';
 
 function ProfilePage() {
   const [userProfile, setUserProfile] = useState(null);
@@ -27,23 +28,18 @@ function ProfilePage() {
     setDisable2FAError('');
     setDisable2FAMessage('');
     try {
-      const response = await fetch('/api/auth/me', {
+      const data = await fetchApi('/api/auth/me', {
         method: 'GET',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', },
+        headers: { 'Authorization': `Bearer ${token}` },
       });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        const errorMessage = data?.error || `Error fetching profile: ${response.status}`;
-        if (response.status === 401 || response.status === 403) {
-          logout();
-          navigate('/login');
-        }
-        throw new Error(errorMessage);
-      }
       console.log("ProfilePage: Profile data fetched:", data);
       setUserProfile(data);
     } catch (err) {
       console.error("ProfilePage: Fetch error:", err);
+      if (err.message.includes('401') || err.message.includes('403')) {
+        logout();
+        navigate('/login');
+      }
       setError(err.message || 'Failed to load profile data.');
       setUserProfile(null);
     } finally {
@@ -79,19 +75,13 @@ function ProfilePage() {
     setDisable2FAMessage('');
 
     try {
-      const response = await fetch('/api/auth/2fa/disable', {
+      const data = await fetchApi('/api/auth/2fa/disable', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
         },
         body: JSON.stringify({ password: passwordToDisable }),
       });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to disable 2FA.');
-      }
 
       setDisable2FAMessage(data.message || '2FA has been disabled.');
       setShowPasswordPrompt(false);

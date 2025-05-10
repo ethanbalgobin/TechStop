@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import fetchApi from '../utils/api';
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
@@ -36,6 +37,28 @@ export function AuthProvider({ children }) {
     setShow2FAReminder(false);
   }, []);
 
+
+  const checkAuth = async () => {
+    const storedToken = localStorage.getItem('token');
+    if (!storedToken) {
+      setToken(null);
+      setUser(null);
+      return;
+    }
+
+    try {
+      const data = await fetchApi('/api/auth/me', {
+        headers: { 'Authorization': `Bearer ${storedToken}` }
+      });
+      setToken(storedToken);
+      setUser(data);
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      localStorage.removeItem('token');
+      setToken(null);
+      setUser(null);
+    }
+  };
 
   useEffect(() => {
     const verifyToken = async () => {

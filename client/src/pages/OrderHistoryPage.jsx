@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import fetchApi from '../utils/api';
 
 function OrderHistoryPage() {
   const [orders, setOrders] = useState([]);
@@ -15,26 +16,21 @@ function OrderHistoryPage() {
       return;
     }
 
+    
     console.log("OrderHistoryPage: Fetching order history...");
     setLoading(true);
     setError(null);
 
-    fetch('/api/orders', {
+    fetchApi('/api/orders', {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
     })
-    .then(async response => {
-      const data = await response.json().catch(() => null);
-      if (!response.ok) {
-        const errorMessage = data?.error || `Error fetching orders: ${response.status}`;
-        console.error("OrderHistoryPage: API Error:", errorMessage);
-        throw new Error(errorMessage);
-      }
+    .then(data => {
       console.log("OrderHistoryPage: Orders fetched successfully:", data);
-      setOrders(data);
+      setOrders(Array.isArray(data) ? data : []);
     })
     .catch(err => {
       console.error("OrderHistoryPage: Fetch error:", err);
@@ -67,6 +63,11 @@ function OrderHistoryPage() {
 
   if (error) {
     return <div className="text-center text-red-600 bg-red-100 p-4 rounded-md max-w-md mx-auto">Error loading orders: {error}</div>;
+  }
+
+  if (!Array.isArray(orders)) {
+    console.error("OrderHistoryPage: orders is not an array:", orders);
+    return <div className="text-center text-red-600 bg-red-100 p-4 rounded-md max-w-md mx-auto">Error: Invalid order data received</div>;
   }
 
   return (

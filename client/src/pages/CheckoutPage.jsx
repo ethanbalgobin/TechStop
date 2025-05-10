@@ -252,13 +252,13 @@ function CheckoutPage() {
               {cartItems.map(item => (
                 <div key={item.product.id} className={summaryItemStyle}>
                   <span>{item.product.name} (x{item.quantity})</span>
-                  <span className="font-medium">${(Number(item.product.price) * item.quantity).toFixed(2)}</span>
+                  <span className="font-medium"> ${(Number(item.product.price) * item.quantity).toFixed(2)}</span>
                 </div>
               ))}
             </div>
             <div className="border-t border-gray-200 pt-4">
               <div className={summaryTotalStyle}>
-                <span>Total:</span>
+                <span>Total: </span>
                 <span>${cartTotal.toFixed(2)}</span>
               </div>
             </div>

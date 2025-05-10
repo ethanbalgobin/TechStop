@@ -199,7 +199,7 @@ function ProductDetailPage() {
 
   const handleAddToCart = () => {
     if (product) {
-      addToCart(product);
+      addToCart(product.id, 1);
       console.log("ProductDetailPage: Added to cart:", product.name);
       setAddedMessage(`${product.name} added to cart!`);
       setTimeout(() => setAddedMessage(''), 3000);
