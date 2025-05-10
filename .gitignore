@@ -39,3 +39,4 @@ Thumbs.db
 
 # Generated css
 client/src/output.css
+.vercel
