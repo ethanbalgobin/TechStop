@@ -65,35 +65,29 @@ export function AuthProvider({ children }) {
       if (token) {
         console.log("AuthProvider: Verifying token:", token);
         try {
-          const response = await fetch('/api/auth/me', {
+          const verifiedUser = await fetchApi('/api/auth/me', {
             method: 'GET',
-            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', },
+            headers: { 'Authorization': `Bearer ${token}` }
           });
-          if (!response.ok) {
-            if (response.status === 401 || response.status === 403) {
-              console.warn(`AuthProvider: Token verification failed (${response.status}). Logging out.`);
-              logout();
-            } else {
-              console.error(`AuthProvider: Error verifying token, status: ${response.status}`);
-            }
+          console.log("AuthProvider: Token verified.");
+          if (!user || user.id !== verifiedUser.id || user.is_2fa_enabled !== verifiedUser.is_2fa_enabled || user.is_admin !== verifiedUser.is_admin) {
+            console.log("AuthProvider: Updating user state:", verifiedUser);
+            setUser(verifiedUser);
+            localStorage.setItem('userInfo', JSON.stringify(verifiedUser));
+            setShow2FAReminder(!!verifiedUser && !verifiedUser.is_2fa_enabled);
           } else {
-             console.log("AuthProvider: Token verified.");
-             const verifiedUser = await response.json();
-             if (!user || user.id !== verifiedUser.id || user.is_2fa_enabled !== verifiedUser.is_2fa_enabled || user.is_admin !== verifiedUser.is_admin) {
-                 console.log("AuthProvider: Updating user state:", verifiedUser);
-                 setUser(verifiedUser);
-                 localStorage.setItem('userInfo', JSON.stringify(verifiedUser));
-                 setShow2FAReminder(!!verifiedUser && !verifiedUser.is_2fa_enabled);
-             } else {
-                 setShow2FAReminder(!!user && !user.is_2fa_enabled);
-             }
+            setShow2FAReminder(!!user && !user.is_2fa_enabled);
           }
         } catch (error) {
           console.error("AuthProvider: Network error during token verification:", error);
+          if (error.message.includes('401') || error.message.includes('403')) {
+            console.warn("AuthProvider: Token verification failed. Logging out.");
+            logout();
+          }
         }
       } else {
-         console.log("AuthProvider: No token found.");
-         setShow2FAReminder(false);
+        console.log("AuthProvider: No token found.");
+        setShow2FAReminder(false);
       }
     };
     verifyToken();

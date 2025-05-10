@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
-import { useAuth } from '../context/AuthContext';
-import { API_BASE_URL } from '../constants/api';
+import { useAuth } from '../context/authContext';
+import fetchApi from '../utils/api';
 
 function ProductDetailPage() {
   const { productId } = useParams();
@@ -40,15 +40,7 @@ function ProductDetailPage() {
     setError(null);
     setAddedMessage('');
 
-    fetch(`${API_BASE_URL}/api/products/${productId}`)
-      .then(response => {
-        if (!response.ok) {
-           return response.json().catch(() => null).then(errData => {
-               throw new Error(errData?.error || `HTTP error! status: ${response.status}`);
-           });
-        }
-        return response.json();
-      })
+    fetchApi(`/api/products/${productId}`)
       .then(data => {
         console.log("ProductDetailPage: Product data fetched:", data);
         setProduct(data);
@@ -76,12 +68,7 @@ function ProductDetailPage() {
 
   const fetchReviews = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/reviews/product/${productId}`);
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch reviews');
-      }
-      const data = await response.json();
+      const data = await fetchApi(`/api/reviews/product/${productId}`);
       setReviews(data);
     } catch (error) {
       console.error('Error fetching reviews:', error);
@@ -109,7 +96,7 @@ function ProductDetailPage() {
         formData.append('image', newReview.image);
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/reviews/product/${productId}`, {
+      const submittedReview = await fetchApi(`/api/reviews/product/${productId}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -117,13 +104,6 @@ function ProductDetailPage() {
         body: formData
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.details || data.error || 'Failed to submit review');
-      }
-
-      const submittedReview = data;
       setReviews(prevReviews => [submittedReview, ...prevReviews]);
       setNewReview({ rating: 5, comment: '', image: null });
       setSubmitStatus('success');
@@ -141,7 +121,7 @@ function ProductDetailPage() {
       formData.append('rating', rating);
       formData.append('comment', comment);
 
-      const response = await fetch(`${API_BASE_URL}/api/reviews/${reviewId}`, {
+      const updatedReview = await fetchApi(`/api/reviews/${reviewId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -149,12 +129,6 @@ function ProductDetailPage() {
         body: formData
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update review');
-      }
-
-      const updatedReview = await response.json();
       setReviews(prevReviews =>
         prevReviews.map(review =>
           review.id === reviewId ? updatedReview : review
@@ -175,17 +149,12 @@ function ProductDetailPage() {
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/reviews/${reviewId}`, {
+      await fetchApi(`/api/reviews/${reviewId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete review');
-      }
 
       setReviews(prevReviews =>
         prevReviews.filter(review => review.id !== reviewId)
@@ -408,7 +377,7 @@ function ProductDetailPage() {
                   {review.image_url && (
                     <div className="mt-4">
                       <img
-                        src={`${API_BASE_URL}${review.image_url}`}
+                        src={review.image_url}
                         alt="Review"
                         className="max-w-xs h-auto rounded-lg"
                       />

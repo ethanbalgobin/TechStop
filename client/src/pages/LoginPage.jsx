@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/authContext';
 import fetchApi from '../utils/api';
 
 function LoginPage() {
@@ -88,7 +88,7 @@ function LoginPage() {
           // --- Password Form ---
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label htmlFor="username" className={labelClasses}>Username</label>
+              <label htmlFor="username" className={labelClasses}>E-mail address</label>
               <input
                 type="text" id="username" name="username" value={username}
                 onChange={(e) => setUsername(e.target.value)} required disabled={isLoading}

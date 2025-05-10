@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext'; 
-import { useAuth } from '../context/AuthContext'; 
+import { useAuth } from '../context/authContext'; 
 import { countryList } from '../constants/countries'; 
 import { loadStripe } from '@stripe/stripe-js';
 import fetchApi from '../utils/api';

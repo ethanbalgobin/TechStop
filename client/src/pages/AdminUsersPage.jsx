@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/authContext';
+import fetchApi from '../utils/api';
 
 function AdminUsersPage() {
   const [users, setUsers] = useState([]);
@@ -21,17 +22,12 @@ function AdminUsersPage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/admin/users', {
+      const data = await fetchApi('/api/admin/users', {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+          'Authorization': `Bearer ${token}`
+        }
       });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || `Failed to fetch users: ${response.status}`);
-      }
       console.log("AdminUsersPage: All users fetched successfully:", data.length);
       setUsers(data);
     } catch (err) {
@@ -82,18 +78,13 @@ function AdminUsersPage() {
     setError('');
 
     try {
-        const response = await fetch(`/api/admin/users/${userToUpdateRole.id}/role`, {
+        const result = await fetchApi(`/api/admin/users/${userToUpdateRole.id}/role`, {
             method: 'PUT',
             headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
             },
-            body: JSON.stringify({ isAdmin: userToUpdateRole.newIsAdmin }),
+            body: JSON.stringify({ isAdmin: userToUpdateRole.newIsAdmin })
         });
-        const result = await response.json();
-        if (!response.ok) {
-            throw new Error(result.error || `Failed to update user role: ${response.status}`);
-        }
         console.log(`User ID: ${userToUpdateRole.id} role updated successfully.`);
         setShowRoleConfirm(false);
         setUserToUpdateRole(null);

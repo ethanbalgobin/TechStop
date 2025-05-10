@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/authContext';
 import fetchApi from '../utils/api';
 
 function TwoFactorAuthSetup({ onSetupComplete }) {
