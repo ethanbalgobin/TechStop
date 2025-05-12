@@ -98,25 +98,6 @@ CREATE TABLE categories (
 );
 
 
--- TODO: Revise these tables and start normalisation.
-CREATE TABLE stock (
-    stock_id SERIAL PRIMARY KEY,
-    sku VARCHAR(100) REFERENCES products(sku) ON DELETE CASCADE,
-    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-    supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE UPDATE
-);
-
-
--- suppliers table
-CREATE TABLE suppliers( 
-    id SERIAL PRIMARY KEY,
-    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE UPDATE,
-    name VARCHAR(255) NOT NULL UNIQUE,
-    address TEXT NOT NULL UNIQUE,
-    contact_number INTEGER NOT NULL UNIQUE,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
 -- reviews
 CREATE TABLE reviews (
     id SERIAL PRIMARY KEY,
@@ -132,23 +113,6 @@ CREATE TABLE reviews (
 COMMENT ON COLUMN reviews.rating IS 'Rating on a scale from 1-5 stars';
 COMMENT ON COLUMN reviews.comment IS 'The review text content';
 
--- warehouses
-CREATE TABLE warehouses(
-    id SERIAL PRIMARY KEY,
-    address TEXT,
-    product_category_stored VARCHAR(255) REFERENCES categories(name) ON DELETE CASCADE
-);
-
--- vehicles
-CREATE TABLE vehicles (
-    id SERIAL PRIMARY KEY,
-    warehouse_assigned INT REFERENCES warehouses (id) ON CHANGE UPDATE,
-    registration INTEGER NOT NULL,
-    mileage BIGINT NOT NULL DEFAULT 20,
-    date_serviced TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-)
-
--- End TODO
 
 
 --- INDEXES ---
